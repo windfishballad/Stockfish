@@ -85,11 +85,11 @@ bool pawns_comp(Square i, Square j) { return MapPawns[i] < MapPawns[j]; }
 int off_A1H8(Square sq) { return int(rank_of(sq)) - file_of(sq); }
 
 constexpr Value WDL_to_value[] = {
-   -VALUE_MATE + MAX_PLY + 1,
-    VALUE_DRAW - 2,
+    VALUE_TB_LOSS_IN_ZERO_PLIES,
+    VALUE_CURSED_LOSS_IN_ZERO_PLIES,
     VALUE_DRAW,
-    VALUE_DRAW + 2,
-    VALUE_MATE - MAX_PLY - 1
+    VALUE_CURSED_WIN_IN_ZERO_PLIES,
+    VALUE_TB_WIN_IN_ZERO_PLIES
 };
 
 template<typename T, int Half = sizeof(T) / 2, int End = sizeof(T) - 1>
@@ -1522,7 +1522,7 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
     // Check whether a position was repeated since the last zeroing move.
     bool rep = pos.has_repeated();
 
-    int dtz, bound = Options["Syzygy50MoveRule"] ? 900 : 1;
+    int dtz, bound =  900;
 
     // Probe and rank each move
     for (auto& m : rootMoves)
@@ -1532,7 +1532,7 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
         // Calculate dtz for the current move counting from the root position
         if (pos.rule50_count() == 0)
         {
-            // In case of a zeroing move, dtz is one of -101/-1/0/1/101
+            // In case of a zeroing move, dtz is one of -100/-1/0/1/100
             WDLScore wdl = -probe_wdl(pos, &result);
             dtz = dtz_before_zeroing(wdl);
         }
@@ -1573,11 +1573,11 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
         // Determine the score to be displayed for this move. Assign at least
         // 1 cp to cursed wins and let it grow to 49 cp as the positions gets
         // closer to a real win.
-        m.tbScore =  r >= bound ? VALUE_MATE - MAX_PLY - 1
-                   : r >  0     ? Value((std::max( 3, r - 800) * int(PawnValueEg)) / 200)
+        m.tbScore =  r >= bound ? VALUE_TB_WIN_IN_ZERO_PLIES
+                   : r >  0     ? VALUE_CURSED_WIN_IN_ZERO_PLIES
                    : r == 0     ? VALUE_DRAW
-                   : r > -bound ? Value((std::min(-3, r + 800) * int(PawnValueEg)) / 200)
-                   :             -VALUE_MATE + MAX_PLY + 1;
+                   : r > -bound ? VALUE_CURSED_LOSS_IN_ZERO_PLIES
+                   :             -VALUE_TB_LOSS_IN_ZERO_PLIES;
     }
 
     return true;
@@ -1596,7 +1596,6 @@ bool Tablebases::root_probe_wdl(Position& pos, Search::RootMoves& rootMoves) {
     StateInfo st;
     WDLScore wdl;
 
-    bool rule50 = Options["Syzygy50MoveRule"];
 
     // Probe and rank each move
     for (auto& m : rootMoves)
@@ -1615,9 +1614,6 @@ bool Tablebases::root_probe_wdl(Position& pos, Search::RootMoves& rootMoves) {
 
         m.tbRank = WDL_to_rank[wdl + 2];
 
-        if (!rule50)
-            wdl =  wdl > WDLDraw ? WDLWin
-                 : wdl < WDLDraw ? WDLLoss : WDLDraw;
         m.tbScore = WDL_to_value[wdl + 2];
     }
 

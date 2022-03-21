@@ -306,7 +306,7 @@ void Thread::search() {
   complexityAverage.set(202, 1);
 
   trend         = SCORE_ZERO;
-  optimism[ us] = Value(39);
+  optimism[ us] = Value(0);
   optimism[~us] = -optimism[us];
 
   int searchAgainCounter = 0;
@@ -358,7 +358,7 @@ void Thread::search() {
               trend = (us == WHITE ?  make_score(tr, tr / 2)
                                    : -make_score(tr, tr / 2));
 
-              int opt = sigmoid(prev, 8, 17, 144, 13966, 183);
+              int opt = 0;
               optimism[ us] = Value(opt);
               optimism[~us] = -optimism[us];
           }
@@ -685,12 +685,15 @@ namespace {
             {
                 thisThread->tbHits.fetch_add(1, std::memory_order_relaxed);
 
-                int drawScore = TB::UseRule50 ? 1 : 0;
+                int drawScore = 0;
+                                int cursedWinScore = 1;
 
-                // use the range VALUE_MATE_IN_MAX_PLY to VALUE_TB_WIN_IN_MAX_PLY to score
-                value =  wdl < -drawScore ? VALUE_MATED_IN_MAX_PLY + ss->ply + 1
-                       : wdl >  drawScore ? VALUE_MATE_IN_MAX_PLY - ss->ply - 1
-                                          : VALUE_DRAW + 2 * wdl * drawScore;
+                                // use the range VALUE_MATE_IN_MAX_PLY to VALUE_TB_WIN_IN_MAX_PLY to score
+                                value =  wdl < -cursedWinScore ? VALUE_TB_LOSS_IN_ZERO_PLIES + ss->ply
+                                       : wdl <  drawScore ? VALUE_CURSED_LOSS_IN_ZERO_PLIES + ss->ply
+                                       : wdl >  cursedWinScore ? VALUE_TB_WIN_IN_ZERO_PLIES - ss->ply
+                                       : wdl > drawScore ?  VALUE_CURSED_WIN_IN_ZERO_PLIES - ss->ply
+                                         : VALUE_DRAW;
 
                 Bound b =  wdl < -drawScore ? BOUND_UPPER
                          : wdl >  drawScore ? BOUND_LOWER : BOUND_EXACT;
@@ -1636,16 +1639,16 @@ moves_loop: // When in check, search starts here
 
     if (v >= VALUE_TB_WIN_IN_MAX_PLY)  // TB win or better
     {
-        if (v >= VALUE_MATE_IN_MAX_PLY && VALUE_MATE - v > 99 - r50c)
-            return VALUE_MATE_IN_MAX_PLY - 1; // do not return a potentially false mate score
+        if ( VALUE_CURSED_WIN_IN_ZERO_PLIES- v > 99 - r50c)
+            return VALUE_TB_WIN_IN_MAX_PLY - 1; // do not return a potentially false certified TB win
 
         return v - ply;
     }
 
     if (v <= VALUE_TB_LOSS_IN_MAX_PLY) // TB loss or worse
     {
-        if (v <= VALUE_MATED_IN_MAX_PLY && VALUE_MATE + v > 99 - r50c)
-            return VALUE_MATED_IN_MAX_PLY + 1; // do not return a potentially false mate score
+        if (VALUE_CURSED_WIN_IN_ZERO_PLIES + v > 99 - r50c)
+            return VALUE_TB_LOSS_IN_MAX_PLY + 1; // do not return a potentially false certified TB loss
 
         return v + ply;
     }

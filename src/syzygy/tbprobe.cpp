@@ -1577,7 +1577,7 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
                    : r >  0     ? VALUE_CURSED_WIN_IN_ZERO_PLIES
                    : r == 0     ? VALUE_DRAW
                    : r > -bound ? VALUE_CURSED_LOSS_IN_ZERO_PLIES
-                   :             -VALUE_TB_LOSS_IN_ZERO_PLIES;
+                   :             VALUE_TB_LOSS_IN_ZERO_PLIES;
     }
 
     return true;

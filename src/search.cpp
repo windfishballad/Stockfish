@@ -1637,21 +1637,77 @@ moves_loop: // When in check, search starts here
     if (v == VALUE_NONE)
         return VALUE_NONE;
 
-    if (v >= VALUE_TB_WIN_IN_MAX_PLY)  // TB win or better
+    if (v>= VALUE_UNPROVEN_CURSED_WIN_IN_MAX_PLY)
     {
-        if ( VALUE_CURSED_WIN_IN_ZERO_PLIES- v > 99 - r50c)
-            return VALUE_TB_WIN_IN_MAX_PLY - 1; // do not return a potentially false certified TB win
 
-        return v - ply;
+		if (v >= VALUE_MATE_IN_MAX_PLY)
+		{
+			if (VALUE_MATE - v > 99 - r50c)
+				return std::max(VALUE_UNPROVEN_MATE_IN_ZERO_PLIES - VALUE_MATE + v - ply,VALUE_UNPROVEN_MATE_IN_MAX_PLY);
+			return std::max(v - ply,VALUE_MATE_IN_MAX_PLY);
+		}
+
+		if (v >= VALUE_TRUE_WIN_IN_MAX_PLY)
+		{
+			if (VALUE_TB_WIN_IN_ZERO_PLIES - v > 99 - r50c)
+				return std::max(VALUE_UNPROVEN_TB_WIN_IN_ZERO_PLIES - VALUE_TB_WIN_IN_ZERO_PLIES + v - ply,VALUE_UNPROVEN_TRUE_WIN_IN_MAX_PLY);
+			return std::max(v - ply,VALUE_TRUE_WIN_IN_MAX_PLY);
+		}
+
+		if (v >= VALUE_CURSED_WIN_IN_MAX_PLY)
+		{
+			if (VALUE_CURSED_WIN_IN_ZERO_PLIES - v > 99 - r50c)
+				return std::max(VALUE_UNPROVEN_CURSED_WIN_IN_ZERO_PLIES - VALUE_CURSED_WIN_IN_ZERO_PLIES + v - ply,VALUE_UNPROVEN_CURSED_WIN_IN_MAX_PLY);
+			return std::max(v - ply,VALUE_MATE_IN_MAX_PLY);
+		}
+
+		if (v >= VALUE_UNPROVEN_MATE_IN_MAX_PLY)
+				return std::max(v - ply,VALUE_UNPROVEN_MATE_IN_MAX_PLY);
+
+
+		if (v >= VALUE_UNPROVEN_TRUE_WIN_IN_MAX_PLY)
+					return std::max(v - ply,VALUE_UNPROVEN_TRUE_WIN_IN_MAX_PLY);
+
+		return std::max(v - ply,VALUE_UNPROVEN_CURSED_WIN_IN_MAX_PLY);
+
     }
 
-    if (v <= VALUE_TB_LOSS_IN_MAX_PLY) // TB loss or worse
-    {
-        if (VALUE_CURSED_WIN_IN_ZERO_PLIES + v > 99 - r50c)
-            return VALUE_TB_LOSS_IN_MAX_PLY + 1; // do not return a potentially false certified TB loss
+    if (v<=  VALUE_UNPROVEN_CURSED_LOSS_IN_MAX_PLY)
+	{
 
-        return v + ply;
-    }
+		if (v <= VALUE_MATED_IN_MAX_PLY)
+		{
+			if (VALUE_MATED - v < 99 - r50c)
+				return std::min(VALUE_UNPROVEN_MATED_IN_ZERO_PLIES - VALUE_MATED + v + ply,VALUE_UNPROVEN_MATED_IN_MAX_PLY);
+			return std::min(v + ply,VALUE_MATED_IN_MAX_PLY);
+		}
+
+		if (v <= VALUE_TRUE_LOSS_IN_MAX_PLY)
+		{
+			if (VALUE_TB_LOSS_IN_ZERO_PLIES - v < 99 - r50c)
+				return std::min(VALUE_UNPROVEN_TB_LOSS_IN_ZERO_PLIES - VALUE_TB_LOSS_IN_ZERO_PLIES + v + ply,VALUE_UNPROVEN_TRUE_LOSS_IN_MAX_PLY);
+			return std::min(v + ply,VALUE_TRUE_LOSS_IN_MAX_PLY);
+		}
+
+		if (v <= VALUE_CURSED_LOSS_IN_MAX_PLY)
+		{
+			if (VALUE_CURSED_LOSS_IN_ZERO_PLIES - v < 99 - r50c)
+				return std::min(VALUE_UNPROVEN_CURSED_LOSS_IN_ZERO_PLIES - VALUE_CURSED_LOSS_IN_ZERO_PLIES + v + ply,VALUE_UNPROVEN_CURSED_LOSS_IN_MAX_PLY);
+			return std::min(v + ply,VALUE_CURSED_LOSS_IN_MAX_PLY);
+		}
+
+		if (v <= VALUE_UNPROVEN_MATE_IN_MAX_PLY)
+				return std::min(v + ply,VALUE_UNPROVEN_MATE_IN_MAX_PLY);
+
+
+		if (v <= VALUE_UNPROVEN_TRUE_LOSS_IN_MAX_PLY)
+					return std::min(v + ply,VALUE_UNPROVEN_TRUE_LOSS_IN_MAX_PLY);
+
+		return std::min(v + ply,VALUE_UNPROVEN_CURSED_LOSS_IN_MAX_PLY);
+
+	}
+
+
 
     return v;
   }

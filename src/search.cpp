@@ -1678,21 +1678,21 @@ moves_loop: // When in check, search starts here
 
 		if (v <= VALUE_MATED_IN_MAX_PLY)
 		{
-			if (VALUE_MATED - v < 99 - r50c)
+			if (VALUE_MATED - v > 99 - r50c)
 				return std::min(VALUE_UNPROVEN_MATED_IN_ZERO_PLIES - VALUE_MATED + v + ply,VALUE_UNPROVEN_MATED_IN_MAX_PLY);
 			return std::min(v + ply,VALUE_MATED_IN_MAX_PLY);
 		}
 
 		if (v <= VALUE_TRUE_LOSS_IN_MAX_PLY)
 		{
-			if (VALUE_TB_LOSS_IN_ZERO_PLIES - v < 99 - r50c)
+			if (VALUE_TB_LOSS_IN_ZERO_PLIES - v > 99 - r50c)
 				return std::min(VALUE_UNPROVEN_TB_LOSS_IN_ZERO_PLIES - VALUE_TB_LOSS_IN_ZERO_PLIES + v + ply,VALUE_UNPROVEN_TRUE_LOSS_IN_MAX_PLY);
 			return std::min(v + ply,VALUE_TRUE_LOSS_IN_MAX_PLY);
 		}
 
 		if (v <= VALUE_CURSED_LOSS_IN_MAX_PLY)
 		{
-			if (VALUE_CURSED_LOSS_IN_ZERO_PLIES - v < 99 - r50c)
+			if (VALUE_CURSED_LOSS_IN_ZERO_PLIES - v > 99 - r50c)
 				return std::min(VALUE_UNPROVEN_CURSED_LOSS_IN_ZERO_PLIES - VALUE_CURSED_LOSS_IN_ZERO_PLIES + v + ply,VALUE_UNPROVEN_CURSED_LOSS_IN_MAX_PLY);
 			return std::min(v + ply,VALUE_CURSED_LOSS_IN_MAX_PLY);
 		}

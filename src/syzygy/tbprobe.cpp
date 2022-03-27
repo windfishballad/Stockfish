@@ -1573,11 +1573,11 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
         // Determine the score to be displayed for this move. Assign at least
         // 1 cp to cursed wins and let it grow to 49 cp as the positions gets
         // closer to a real win.
-        m.tbScore =  r >= bound ? VALUE_TB_WIN_IN_ZERO_PLIES
-                   : r >  0     ? VALUE_CURSED_WIN_IN_ZERO_PLIES
+        m.tbScore =  r >= bound ? VALUE_TB_WIN_IN_ZERO_PLIES-dtz
+                   : r >  0     ? VALUE_CURSED_WIN_IN_ZERO_PLIES-dtz
                    : r == 0     ? VALUE_DRAW
-                   : r > -bound ? VALUE_CURSED_LOSS_IN_ZERO_PLIES
-                   :             VALUE_TB_LOSS_IN_ZERO_PLIES;
+                   : r > -bound ? VALUE_CURSED_LOSS_IN_ZERO_PLIES+dtz
+                   :             VALUE_TB_LOSS_IN_ZERO_PLIES+dtz;
     }
 
     return true;

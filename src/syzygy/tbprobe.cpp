@@ -1520,7 +1520,7 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
     // Check whether a position was repeated since the last zeroing move.
     bool rep = pos.has_repeated();
 
-    int dtz, bound = Options["Syzygy50MoveRule"] ? 900 : 1;
+    int dtz, bound =  900;
 
     // Probe and rank each move
     for (auto& m : rootMoves)
@@ -1530,9 +1530,17 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
         // Calculate dtz for the current move counting from the root position
         if (pos.rule50_count() == 0)
         {
-            // In case of a zeroing move, dtz is one of -101/-1/0/1/101
+            // In case of a zeroing move, dtz is one of -100/-1/0/1/100
             WDLScore wdl = -probe_wdl(pos, &result);
             dtz = dtz_before_zeroing(wdl);
+        }
+        else if (pos.is_draw(1))
+        {
+            // In case a root move leads to a draw by repetition or
+            // 50-move rule, we set dtz to zero. Note: since we are
+            // only 1 ply from the root, this must be a true 3-fold
+            // repetition inside the game history.
+            dtz = 0;
         }
         else
         {
@@ -1563,11 +1571,11 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
         // Determine the score to be displayed for this move. Assign at least
         // 1 cp to cursed wins and let it grow to 49 cp as the positions gets
         // closer to a real win.
-        m.tbScore =  r >= bound ? VALUE_MATE - MAX_PLY - 1
-                   : r >  0     ? Value((std::max( 3, r - 800) * int(PawnValueEg)) / 200)
+        m.tbScore =  r >= bound ? VALUE_TB_WIN_IN_ZERO_PLIES-dtz
+                   : r >  0     ? VALUE_CURSED_WIN_IN_ZERO_PLIES-dtz
                    : r == 0     ? VALUE_DRAW
-                   : r > -bound ? Value((std::min(-3, r + 800) * int(PawnValueEg)) / 200)
-                   :             -VALUE_MATE + MAX_PLY + 1;
+                   : r > -bound ? VALUE_CURSED_LOSS_IN_ZERO_PLIES+dtz
+                   :             VALUE_TB_LOSS_IN_ZERO_PLIES+dtz;
     }
 
     return true;

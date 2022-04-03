@@ -735,12 +735,15 @@ namespace {
             {
                 thisThread->tbHits.fetch_add(1, std::memory_order_relaxed);
 
-                int drawScore = TB::UseRule50 ? 1 : 0;
+                int drawScore = 0;
+				int cursedWinScore = 1;
 
-                // use the range VALUE_MATE_IN_MAX_PLY to VALUE_TB_WIN_IN_MAX_PLY to score
-                value =  wdl < -drawScore ? VALUE_MATED_IN_MAX_PLY + ss->ply + 1
-                       : wdl >  drawScore ? VALUE_MATE_IN_MAX_PLY - ss->ply - 1
-                                          : VALUE_DRAW + 2 * wdl * drawScore;
+				// use the range VALUE_MATE_IN_MAX_PLY to VALUE_TB_WIN_IN_MAX_PLY to score
+				value =  wdl < -cursedWinScore ? VALUE_TB_LOSS_IN_ZERO_PLIES + ss->ply
+					   : wdl <  drawScore ? VALUE_CURSED_LOSS_IN_ZERO_PLIES + ss->ply
+					   : wdl >  cursedWinScore ? VALUE_TB_WIN_IN_ZERO_PLIES - ss->ply
+					   : wdl > drawScore ?  VALUE_CURSED_WIN_IN_ZERO_PLIES - ss->ply
+						 : VALUE_DRAW;
 
                 Bound b =  wdl < -drawScore ? BOUND_UPPER
                          : wdl >  drawScore ? BOUND_LOWER : BOUND_EXACT;

@@ -283,12 +283,24 @@ string UCI::value(Value v) {
 
   stringstream ss;
 
-  if (abs(v) < VALUE_MATE_IN_MAX_PLY)
+  if (abs(v) < VALUE_TB_WIN_IN_MAX_PLY)
       ss << "cp " << v * 100 / PawnValueEg;
-  else
+  else if (abs(v) >= VALUE_MATE_IN_MAX_PLY)
       ss << "mate " << (v > 0 ? VALUE_MATE - v + 1 : -VALUE_MATE - v) / 2;
+  else if(abs(v) >= VALUE_TRUE_WIN_IN_MAX_PLY)
+		  ss << "cp " << (v > 0 ? 25000 + (VALUE_TB_WIN_IN_ZERO_PLIES-v) : -25000+(VALUE_TB_LOSS_IN_ZERO_PLIES-v));
+  else if(abs(v) >= VALUE_CURSED_WIN_IN_MAX_PLY)
+		  ss << "cp " << (v > 0 ? 20000 + (VALUE_CURSED_WIN_IN_ZERO_PLIES-v) : -20000+(VALUE_CURSED_LOSS_IN_ZERO_PLIES-v));
+  else if(abs(v) >= VALUE_UNPROVEN_MATE_IN_MAX_PLY)
+	  ss << "cp " << (v > 0 ? 19000 + (VALUE_UNPROVEN_MATE_IN_ZERO_PLIES-v) : -19000+(VALUE_UNPROVEN_MATED_IN_ZERO_PLIES-v));
+  else if(abs(v) >= VALUE_UNPROVEN_TRUE_WIN_IN_MAX_PLY)
+ 	  ss << "cp " << (v > 0 ? 18000 + (VALUE_UNPROVEN_TB_WIN_IN_ZERO_PLIES-v) : -18000+(VALUE_UNPROVEN_TB_LOSS_IN_ZERO_PLIES-v));
+  else
+	  ss << "cp " << (v > 0 ? 17000 + (VALUE_UNPROVEN_CURSED_WIN_IN_ZERO_PLIES-v) : -17000+(VALUE_UNPROVEN_CURSED_LOSS_IN_ZERO_PLIES-v));
+
 
   return ss.str();
+
 }
 
 

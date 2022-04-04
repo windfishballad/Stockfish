@@ -1576,8 +1576,8 @@ bool Tablebases::root_probe(Position& pos, Search::RootMoves& rootMoves) {
         m.tbScore =  r >= bound ? VALUE_TB_WIN_IN_ZERO_PLIES-dtz
                    : r >  0     ? VALUE_CURSED_WIN_IN_ZERO_PLIES-dtz
                    : r == 0     ? VALUE_DRAW
-                   : r > -bound ? VALUE_CURSED_LOSS_IN_ZERO_PLIES+dtz
-                   :             VALUE_TB_LOSS_IN_ZERO_PLIES+dtz;
+                   : r > -bound ? VALUE_CURSED_LOSS_IN_ZERO_PLIES-dtz
+                   :             VALUE_TB_LOSS_IN_ZERO_PLIES-dtz;
     }
 
     return true;

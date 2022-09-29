@@ -688,12 +688,15 @@ namespace {
             {
                 thisThread->tbHits.fetch_add(1, std::memory_order_relaxed);
 
-                int drawScore = TB::UseRule50 ? 1 : 0;
+                int drawScore = 0;
+                                int cursedWinScore = 1;
 
-                // use the range VALUE_MATE_IN_MAX_PLY to VALUE_TB_WIN_IN_MAX_PLY to score
-                value =  wdl < -drawScore ? VALUE_MATED_IN_MAX_PLY + ss->ply + 1
-                       : wdl >  drawScore ? VALUE_MATE_IN_MAX_PLY - ss->ply - 1
-                                          : VALUE_DRAW + 2 * wdl * drawScore;
+                                // use the range VALUE_MATE_IN_MAX_PLY to VALUE_TB_WIN_IN_MAX_PLY to score
+                                value =  wdl < -cursedWinScore ? VALUE_TB_LOSS_IN_ZERO_PLIES + ss->ply
+                                       : wdl <  drawScore ? VALUE_CURSED_LOSS_IN_ZERO_PLIES + ss->ply
+                                       : wdl >  cursedWinScore ? VALUE_TB_WIN_IN_ZERO_PLIES - ss->ply
+                                       : wdl > drawScore ?  VALUE_CURSED_WIN_IN_ZERO_PLIES - ss->ply
+                                         : VALUE_DRAW;
 
                 Bound b =  wdl < -drawScore ? BOUND_UPPER
                          : wdl >  drawScore ? BOUND_LOWER : BOUND_EXACT;
@@ -1629,21 +1632,77 @@ moves_loop: // When in check, search starts here
     if (v == VALUE_NONE)
         return VALUE_NONE;
 
-    if (v >= VALUE_TB_WIN_IN_MAX_PLY)  // TB win or better
+    if (v>= VALUE_UNPROVEN_CURSED_WIN_IN_MAX_PLY)
     {
-        if (v >= VALUE_MATE_IN_MAX_PLY && VALUE_MATE - v > 99 - r50c)
-            return VALUE_MATE_IN_MAX_PLY - 1; // do not return a potentially false mate score
 
-        return v - ply;
+		if (v >= VALUE_MATE_IN_MAX_PLY)
+		{
+			if (VALUE_MATE - v > 99 - r50c)
+				return std::max(VALUE_UNPROVEN_MATE_IN_ZERO_PLIES - VALUE_MATE + v - ply,VALUE_UNPROVEN_MATE_IN_MAX_PLY);
+			return std::max(v - ply,VALUE_MATE_IN_MAX_PLY);
+		}
+
+		if (v >= VALUE_TRUE_WIN_IN_MAX_PLY)
+		{
+			if (VALUE_TB_WIN_IN_ZERO_PLIES - v > 99 - r50c)
+				return std::max(VALUE_UNPROVEN_TB_WIN_IN_ZERO_PLIES - VALUE_TB_WIN_IN_ZERO_PLIES + v - ply,VALUE_UNPROVEN_TRUE_WIN_IN_MAX_PLY);
+			return std::max(v - ply,VALUE_TRUE_WIN_IN_MAX_PLY);
+		}
+
+		if (v >= VALUE_CURSED_WIN_IN_MAX_PLY)
+		{
+			if (VALUE_CURSED_WIN_IN_ZERO_PLIES - v > 99 - r50c)
+				return std::max(VALUE_UNPROVEN_CURSED_WIN_IN_ZERO_PLIES - VALUE_CURSED_WIN_IN_ZERO_PLIES + v - ply,VALUE_UNPROVEN_CURSED_WIN_IN_MAX_PLY);
+			return std::max(v - ply,VALUE_MATE_IN_MAX_PLY);
+		}
+
+		if (v >= VALUE_UNPROVEN_MATE_IN_MAX_PLY)
+				return std::max(v - ply,VALUE_UNPROVEN_MATE_IN_MAX_PLY);
+
+
+		if (v >= VALUE_UNPROVEN_TRUE_WIN_IN_MAX_PLY)
+					return std::max(v - ply,VALUE_UNPROVEN_TRUE_WIN_IN_MAX_PLY);
+
+		return std::max(v - ply,VALUE_UNPROVEN_CURSED_WIN_IN_MAX_PLY);
+
     }
 
-    if (v <= VALUE_TB_LOSS_IN_MAX_PLY) // TB loss or worse
-    {
-        if (v <= VALUE_MATED_IN_MAX_PLY && VALUE_MATE + v > 99 - r50c)
-            return VALUE_MATED_IN_MAX_PLY + 1; // do not return a potentially false mate score
+    if (v<=  VALUE_UNPROVEN_CURSED_LOSS_IN_MAX_PLY)
+	{
 
-        return v + ply;
-    }
+		if (v <= VALUE_MATED_IN_MAX_PLY)
+		{
+			if (VALUE_MATED - v > 99 - r50c)
+				return std::min(VALUE_UNPROVEN_MATED_IN_ZERO_PLIES - VALUE_MATED + v + ply,VALUE_UNPROVEN_MATED_IN_MAX_PLY);
+			return std::min(v + ply,VALUE_MATED_IN_MAX_PLY);
+		}
+
+		if (v <= VALUE_TRUE_LOSS_IN_MAX_PLY)
+		{
+			if (VALUE_TB_LOSS_IN_ZERO_PLIES - v > 99 - r50c)
+				return std::min(VALUE_UNPROVEN_TB_LOSS_IN_ZERO_PLIES - VALUE_TB_LOSS_IN_ZERO_PLIES + v + ply,VALUE_UNPROVEN_TRUE_LOSS_IN_MAX_PLY);
+			return std::min(v + ply,VALUE_TRUE_LOSS_IN_MAX_PLY);
+		}
+
+		if (v <= VALUE_CURSED_LOSS_IN_MAX_PLY)
+		{
+			if (VALUE_CURSED_LOSS_IN_ZERO_PLIES - v > 99 - r50c)
+				return std::min(VALUE_UNPROVEN_CURSED_LOSS_IN_ZERO_PLIES - VALUE_CURSED_LOSS_IN_ZERO_PLIES + v + ply,VALUE_UNPROVEN_CURSED_LOSS_IN_MAX_PLY);
+			return std::min(v + ply,VALUE_CURSED_LOSS_IN_MAX_PLY);
+		}
+
+		if (v <= VALUE_UNPROVEN_MATE_IN_MAX_PLY)
+				return std::min(v + ply,VALUE_UNPROVEN_MATE_IN_MAX_PLY);
+
+
+		if (v <= VALUE_UNPROVEN_TRUE_LOSS_IN_MAX_PLY)
+					return std::min(v + ply,VALUE_UNPROVEN_TRUE_LOSS_IN_MAX_PLY);
+
+		return std::min(v + ply,VALUE_UNPROVEN_CURSED_LOSS_IN_MAX_PLY);
+
+	}
+
+
 
     return v;
   }

@@ -1076,7 +1076,7 @@ Value Eval::evaluate(const Position& pos) {
   }
 
   // Damp down the evaluation linearly when shuffling
-  int used50_count=pos.rule50_count()>90 ? pos.rule50_count() : pos.rule50_count() < 14 ? 0 : ((pos.rule50_count()-14)/8)*8+14;
+  int used50_count=pos.rule50_count() < 14 ? 0 : ((pos.rule50_count()-14)/8)*8+14;
   v = v * (200 - used50_count) / 214;
 
   // Guarantee evaluation does not hit the tablebase range

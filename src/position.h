@@ -161,6 +161,8 @@ public:
   bool has_game_cycle(int ply) const;
   bool has_repeated() const;
   int rule50_count() const;
+  template<bool AfterMove>
+  int quantized_rule50_count() const;
   Score psq_score() const;
   Value psq_eg_stm() const;
   Value non_pawn_material(Color c) const;
@@ -334,8 +336,10 @@ inline Key Position::key() const {
 template<bool AfterMove>
 inline Key Position::adjust_key50(Key k) const
 {
-  return st->rule50 < 14 - AfterMove
-      ? k : k ^ make_key((st->rule50 - (14 - AfterMove)) / 8);
+  int used_rule50_count=quantized_rule50_count<AfterMove>();
+
+  return used_rule50_count > 0 ?
+      k ^ make_key(used_rule50_count) : k;
 }
 
 inline Key Position::pawn_key() const {
@@ -368,6 +372,11 @@ inline int Position::game_ply() const {
 
 inline int Position::rule50_count() const {
   return st->rule50;
+}
+
+template<bool AfterMove>
+inline int Position::quantized_rule50_count() const {
+	return st->rule50 + AfterMove - 14 < 0 ? 0 : ((st->rule50 + AfterMove - 14)/8)*8+14;
 }
 
 inline bool Position::opposite_bishops() const {

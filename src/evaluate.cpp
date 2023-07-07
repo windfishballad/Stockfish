@@ -1076,8 +1076,8 @@ Value Eval::evaluate(const Position& pos) {
   }
 
   // Damp down the evaluation linearly when shuffling
-  int used50_count=pos.rule50_count() < 14 ? 0 : ((pos.rule50_count()-14)/8)*8+14;
-  v = v * (200 - used50_count) / 214;
+
+  v = v * (200 - pos.quantized_rule50_count<false>()) / 214;
 
   // Guarantee evaluation does not hit the tablebase range
   v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);

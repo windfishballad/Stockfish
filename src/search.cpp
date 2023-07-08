@@ -979,8 +979,10 @@ moves_loop: // When in check, search starts here
           // Reduced depth of the next LMR search
           int lmrDepth = newDepth - r;
 
-          if (   capture
-              || givesCheck)
+          //Do not futility-prune en-passant
+          if ((capture
+              || givesCheck) && type_of(move) != EN_PASSANT)
+
           {
               // Futility pruning for captures (~2 Elo)
               if (   !givesCheck

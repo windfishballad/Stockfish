@@ -26,6 +26,7 @@
 #include "evaluate.h"
 #include "movegen.h"
 #include "position.h"
+#include "rmobutils.h"
 #include "search.h"
 #include "thread.h"
 #include "timeman.h"
@@ -273,6 +274,7 @@ void UCI::loop(int argc, char* argv[]) {
       else if (token == "position")   position(pos, is, states);
       else if (token == "ucinewgame") Search::clear();
       else if (token == "isready")    sync_cout << "readyok" << sync_endl;
+      else if (token == "gValues") displayGValues();
 
       // Add custom non-UCI commands, mainly for debugging purposes.
       // These commands must not be used during a search!
@@ -393,6 +395,16 @@ Move UCI::to_move(const Position& pos, string& str) {
           return m;
 
   return MOVE_NONE;
+}
+
+void UCI::displayGValues() {
+	cout << "\n";
+	for (GScore g=G05;g<MAX_G_SCORE;++g) {
+		cout << "G" << (int) g / 2 << "." << 5*((int) g  % 2) << " : ";
+		for (int ply : {0,20,40,64,80,120,240})
+			cout << "ply: " << ply << " -> " << (int) rMob::gScoreConversion[g-1][ply] * 100 / NormalizeToPawnValue << " ; " ;
+		cout << "\n" ;
+	}
 }
 
 } // namespace Stockfish

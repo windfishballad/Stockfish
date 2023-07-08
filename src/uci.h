@@ -82,6 +82,7 @@ std::string move(Move m, bool chess960);
 std::string pv(const Position& pos, Depth depth);
 std::string wdl(Value v, int ply);
 Move to_move(const Position& pos, std::string& str);
+void displayGValues();
 
 } // namespace UCI
 

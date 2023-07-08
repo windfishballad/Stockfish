@@ -46,6 +46,7 @@ struct StateInfo {
   int    castlingRights;
   int    rule50;
   int    pliesFromNull;
+  GScore gScore;
   Square epSquare;
 
   // Not copied when making a move (will be recomputed anyhow)

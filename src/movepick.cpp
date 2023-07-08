@@ -20,6 +20,7 @@
 
 #include "bitboard.h"
 #include "movepick.h"
+#include "thread.h"
 
 namespace Stockfish {
 
@@ -120,10 +121,14 @@ void MovePicker::score() {
                        | (pos.pieces(us, KNIGHT, BISHOP) & threatenedByPawn);
   }
 
+  int count=0;
+
   for (auto& m : *this)
+  {
       if constexpr (Type == CAPTURES)
           m.value =  (7 * int(PieceValue[MG][pos.piece_on(to_sq(m))])
-                   +     (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))]) / 16;
+                   +     (*captureHistory)[pos.moved_piece(m)][to_sq(m)][type_of(pos.piece_on(to_sq(m)))]) / 16
+				   + (pos.this_thread()->moveNoise[count] & 0x7f);
 
       else if constexpr (Type == QUIETS)
           m.value =  2 * (*mainHistory)[pos.side_to_move()][from_to(m)]
@@ -137,17 +142,23 @@ void MovePicker::score() {
                           :                                         !(to_sq(m) & threatenedByPawn)  ? 15000
                           :                                                                           0)
                           :                                                                           0)
-                   +     bool(pos.check_squares(type_of(pos.moved_piece(m))) & to_sq(m)) * 16384;
+                   +     bool(pos.check_squares(type_of(pos.moved_piece(m))) & to_sq(m)) * 16384
+				   +     (pos.this_thread()->moveNoise[count] & 0xfff);
+
       else // Type == EVASIONS
       {
           if (pos.capture_stage(m))
               m.value =  PieceValue[MG][pos.piece_on(to_sq(m))]
                        - Value(type_of(pos.moved_piece(m)))
+					   + (pos.this_thread()->moveNoise[count] & 0xff)
                        + (1 << 28);
           else
               m.value =  (*mainHistory)[pos.side_to_move()][from_to(m)]
-                       + (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)];
+                       + (*continuationHistory[0])[pos.moved_piece(m)][to_sq(m)]
+			           + (pos.this_thread()->moveNoise[count] & 0x7ff);
       }
+  	  ++count;
+  }
 }
 
 /// MovePicker::select() returns the next move satisfying a predicate function.

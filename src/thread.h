@@ -63,6 +63,7 @@ public:
   std::atomic<uint64_t> nodes, tbHits, bestMoveChanges;
   int selDepth, nmpMinPly;
   Value bestValue, optimism[COLOR_NB];
+  int moveNoise[MAX_MOVES]; //for non-main thread, will add noise to Movepicker::score() to vary move ordering.
 
   Position rootPos;
   StateInfo rootState;

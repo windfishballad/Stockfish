@@ -36,6 +36,16 @@ ThreadPool Threads; // Global object
 
 Thread::Thread(size_t n) : idx(n), stdThread(&Thread::idle_loop, this) {
 
+
+  if(n==0) {
+	  std::memset(&moveNoise[0],0,MAX_MOVES*sizeof(int));
+  }
+  else { //for non main threads, add noise to be used by Movepicker
+	  PRNG rng(make_key(n));
+	  for(int i=0;i<MAX_MOVES;i++)
+		  moveNoise[i]=rng.rand<int>();
+  }
+
   wait_for_search_finished();
 }
 

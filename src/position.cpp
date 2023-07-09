@@ -1227,18 +1227,26 @@ bool Position::has_game_cycle(int ply) const {
 
           if (!((between_bb(s1, s2) ^ s2) & pieces()))
           {
-              if (ply >= i)
+              if (ply > i || (ply == i && !thisThread->pvIdx))
                   return true;
 
-              // For nodes before the root, check that the move is a
+
+              //If the PV being searched is not the first PV, in case the reference node is the root,
+              //we can only asses alpha >= VALUE_DRAW if it's a repetition (going back to root), not
+              //if there is a move from root to the same position, since this root move may be an
+              //earlier PV so not available to current search.
+
+
+              // For nodes before the root or at the root when searching a PV
+              // after the first, check that the move is a
               // repetition rather than a move to the current position.
               // In the cuckoo table, both moves Rc1c5 and Rc5c1 are stored in
               // the same location, so we have to select which square to check.
               if (color_of(piece_on(empty(s1) ? s2 : s1)) != side_to_move())
                   continue;
 
-              // For repetitions before or at the root, require one more
-              if (stp->repetition)
+              // For repetitions strictly before root, require one more
+              if (ply ==i || stp->repetition)
                   return true;
           }
       }

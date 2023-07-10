@@ -1176,7 +1176,7 @@ bool Position::is_draw(int ply) const {
 
   // Return a draw score if a position repeats once earlier but
   // after the root (included), or repeats twice before the root.
-  return st->repetition && st->repetition <= ply;
+  return st->repetition && st->repetition < ply + !thisThread->pvIdx;
 }
 
 

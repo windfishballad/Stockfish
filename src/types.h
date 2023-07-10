@@ -202,6 +202,10 @@ enum GScore : int {
 	G05=1,G10=2, G15=3, G20=4, G25=5, G30=6, G35=7, G40=8, G45=9, G50=10, G55=11, MAX_G_SCORE=12
 };
 
+enum KomiResult : int {
+	KOMI_WIN,KOMI_LOSS,KOMI_DRAW
+};
+
 enum PieceType {
   NO_PIECE_TYPE, PAWN, KNIGHT, BISHOP, ROOK, QUEEN, KING,
   ALL_PIECES = 0,

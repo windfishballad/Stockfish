@@ -45,6 +45,7 @@ static void on_threads(const Option& o) { Threads.set(size_t(o)); }
 static void on_tb_path(const Option& o) { Tablebases::init(o); }
 static void on_use_NNUE(const Option&) { Eval::NNUE::init(); }
 static void on_eval_file(const Option&) { Eval::NNUE::init(); }
+static void on_rMob_tb_path(const Option&) { return; }
 
 /// Our case insensitive less() function as required by UCI protocol
 bool CaseInsensitiveLess::operator() (const string& s1, const string& s2) const {
@@ -81,6 +82,11 @@ void init(OptionsMap& o) {
   o["SyzygyProbeLimit"]      << Option(7, 0, 7);
   o["Use NNUE"]              << Option(true, on_use_NNUE);
   o["EvalFile"]              << Option(EvalFileDefaultName, on_eval_file);
+  o["rMobType"]              << Option("Points", on_rMob_Type); //Points, Komi or Tie-break.
+  o["rMobKomi"]              << Option("<empty>", on_rMob_Komi); //G with quarter-integer value. If value is half integer, draw is a possible outcome.
+  o["BoundaryReset"]         << Option(true); //If true, in points play, new objective G5.5 or better resets counter. In komi play, new objective changing WDL status resets counter.
+  o["rMobTbPath"]            << Option("<empty>", on_rMob_tb_path);
+  o["rMobTBProbeLimit"]      << Option(5, 0, 5);
 }
 
 

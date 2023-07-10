@@ -46,7 +46,8 @@ struct StateInfo {
   int    castlingRights;
   int    rule50;
   int    pliesFromNull;
-  GScore gScore;
+  GScore gScore; //For regular rMob play (rMob points) will keep track of gScore up to g5.5
+  KomiResult komiResult; //For komi play only question is whether new gScore change status with respect to Komi.
   Square epSquare;
 
   // Not copied when making a move (will be recomputed anyhow)
@@ -159,6 +160,7 @@ public:
   bool is_chess960() const;
   Thread* this_thread() const;
   bool is_draw(int ply) const;
+  template<bool TieBreak> Value terminal_value() const;
   bool has_game_cycle(int ply) const;
   bool has_repeated() const;
   int rule50_count() const;
@@ -166,6 +168,11 @@ public:
   Value psq_eg_stm() const;
   Value non_pawn_material(Color c) const;
   Value non_pawn_material() const;
+  int legal_moves_count(int n) const; //return min(number of legal moves, b)
+  template<PieceType Pt,bool pinned>
+  bool legal_moves_by_piece(Bitboard target,int n,int &count,Square ksq) const;
+  template<Color Us, bool pinned>
+  bool legal_moves_by_pawns(Bitboard target,int n,int &count,Square ksq) const;
 
   // Position consistency check, for debugging
   bool pos_is_ok() const;

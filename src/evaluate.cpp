@@ -1077,7 +1077,7 @@ Value Eval::evaluate(const Position& pos) {
 
   // Damp down the evaluation linearly when shuffling
 
-  v = v * (200 - pos.quantized_rule50_count<false>()) / 214;
+  v = v * (1914 - 21*std::max(pos.quantized_rule50_count<false>()-10,0)) / 2048;
 
   // Guarantee evaluation does not hit the tablebase range
   v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);

@@ -1673,7 +1673,7 @@ moves_loop: // When in check, search starts here
 
 		  pos.do_move(move,st,givesCheck);
 
-		  bestValue=-std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-VALUE_INFINITE,VALUE_INFINITE));
+		  bestValue=std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-VALUE_INFINITE,-bestValue));
 
 		  pos.undo_move(move);
 

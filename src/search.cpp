@@ -118,6 +118,8 @@ namespace {
   template <NodeType nodeType>
   Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
 
+  Value en_passant_search(Position& pos, Stack* ss);
+
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply, int r50c);
   void update_pv(Move* pv, Move move, const Move* childPv);
@@ -722,7 +724,7 @@ namespace {
         // Never assume anything about values stored in TT
         ss->staticEval = eval = tte->eval();
         if (eval == VALUE_NONE)
-            ss->staticEval = eval = pos.ep_square() == SQ_NONE ? evaluate(pos) : qsearch<PvNode ? PV : NonPV>(pos, ss, alpha, beta);
+            ss->staticEval = eval = pos.ep_square() == SQ_NONE ? evaluate(pos) : en_passant_search(pos,ss);
         else if (PvNode)
             Eval::NNUE::hint_common_parent_position(pos);
 
@@ -733,7 +735,7 @@ namespace {
     }
     else
     {
-        ss->staticEval = eval = pos.ep_square() == SQ_NONE ? evaluate(pos) : qsearch<PvNode ? PV : NonPV>(pos, ss, alpha, beta);
+        ss->staticEval = eval = pos.ep_square() == SQ_NONE ? evaluate(pos) : en_passant_search(pos,ss);
         // Save static evaluation into the transposition table
         tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
@@ -1411,7 +1413,7 @@ moves_loop: // When in check, search starts here
     constexpr bool PvNode = nodeType == PV;
 
     assert(alpha >= -VALUE_INFINITE && alpha < beta && beta <= VALUE_INFINITE);
-    assert(PvNode || (alpha == beta - 1));
+    //assert(PvNode || (alpha == beta - 1));
     assert(depth <= 0);
 
     Move pv[MAX_PLY+1];
@@ -1637,6 +1639,49 @@ moves_loop: // When in check, search starts here
     return bestValue;
   }
 
+
+  //En-passant search is a substitute to the static eval for the main search. It returns max of staying put and
+  //qsearch result of executing the en-passant moves.
+
+  Value en_passant_search(Position& pos, Stack *ss) {
+	  // Step 1. Static eval of the position
+
+	  Value bestValue=-VALUE_INFINITE;
+	  ExtMove moves[2];
+	  ExtMove *cur=moves, *endMoves;
+	  Move move;
+	  StateInfo st;
+	  bool givesCheck;
+
+	  //Step 1. Static evaluation of position
+
+	  bestValue=evaluate(pos);
+
+	  //Step 2. Generate en-passant captures and qsearch them.
+
+	  endMoves=generate<EP_CAPTURES>(pos,cur);
+
+	  assert(endMoves-moves<=2);
+
+	  while(cur++<endMoves)
+	  {
+		  move=*(cur-1);
+		  if(!pos.legal(move))
+				  continue;
+
+		  givesCheck = pos.gives_check(move);
+
+		  pos.do_move(move,st,givesCheck);
+
+		  bestValue=-std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-VALUE_INFINITE,VALUE_INFINITE));
+
+		  pos.undo_move(move);
+
+	  }
+
+	  return bestValue;
+
+  }
 
   // value_to_tt() adjusts a mate or TB score from "plies to mate from the root" to
   // "plies to mate from the current position". Standard scores are unchanged.

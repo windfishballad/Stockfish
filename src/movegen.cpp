@@ -67,6 +67,20 @@ namespace {
     Bitboard pawnsOn7    = pos.pieces(Us, PAWN) &  TRank7BB;
     Bitboard pawnsNotOn7 = pos.pieces(Us, PAWN) & ~TRank7BB;
 
+    //Special case - generate only en-passant captures
+
+    if constexpr (Type == EP_CAPTURES)
+	{
+    	 assert(pos.ep_square() != SQ_NONE);
+
+    	 Bitboard b1 = pawnsNotOn7 & pawn_attacks_bb(Them, pos.ep_square());
+
+		while (b1)
+			*moveList++ = make<EN_PASSANT>(pop_lsb(b1), pos.ep_square());
+
+		return moveList;
+	}
+
     // Single and double pawn pushes, no promotions
     if constexpr (Type != CAPTURES)
     {
@@ -158,6 +172,8 @@ namespace {
         }
     }
 
+
+
     return moveList;
   }
 
@@ -194,6 +210,9 @@ namespace {
     constexpr bool Checks = Type == QUIET_CHECKS; // Reduce template instantiations
     const Square ksq = pos.square<KING>(Us);
     Bitboard target;
+
+    if (Type == EP_CAPTURES)
+    	return generate_pawn_moves<Us, Type>(pos, moveList,AllSquares);
 
     // Skip generating non-king moves when in double check
     if (Type != EVASIONS || !more_than_one(pos.checkers()))
@@ -257,6 +276,8 @@ template ExtMove* generate<QUIETS>(const Position&, ExtMove*);
 template ExtMove* generate<EVASIONS>(const Position&, ExtMove*);
 template ExtMove* generate<QUIET_CHECKS>(const Position&, ExtMove*);
 template ExtMove* generate<NON_EVASIONS>(const Position&, ExtMove*);
+template ExtMove* generate<EP_CAPTURES>(const Position&, ExtMove*);
+
 
 
 /// generate<LEGAL> generates all the legal moves in the given position

@@ -118,7 +118,7 @@ namespace {
   template <NodeType nodeType>
   Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
 
-  Value en_passant_search(Position& pos, Stack* ss);
+  Value en_passant_search(Position& pos, Stack* ss, Value beta, int& improvement);
 
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply, int r50c);
@@ -550,7 +550,7 @@ namespace {
     bool givesCheck, improving, priorCapture, singularQuietLMR;
     bool capture, moveCountPruning, ttCapture;
     Piece movedPiece;
-    int moveCount, captureCount, quietCount, improvement;
+    int moveCount, captureCount, quietCount, improvement, epImprovement=0;
 
     // Step 1. Initialize node
     Thread* thisThread = pos.this_thread();
@@ -718,15 +718,19 @@ namespace {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
         Eval::NNUE::hint_common_parent_position(pos);
         eval = ss->staticEval;
+        eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss,beta,epImprovement);
     }
     else if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
-        ss->staticEval = eval = tte->eval();
-        if (eval == VALUE_NONE)
-            ss->staticEval = eval = pos.ep_square() == SQ_NONE ? evaluate(pos) : en_passant_search(pos,ss);
+        ss->staticEval = tte->eval();
+        if (ss->staticEval == VALUE_NONE)
+            ss->staticEval = evaluate(pos);
+
         else if (PvNode)
             Eval::NNUE::hint_common_parent_position(pos);
+
+        eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss,beta,epImprovement);
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -735,9 +739,10 @@ namespace {
     }
     else
     {
-        ss->staticEval = eval = pos.ep_square() == SQ_NONE ? evaluate(pos) : en_passant_search(pos,ss);
+        ss->staticEval = evaluate(pos);
+        eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss,beta,epImprovement);
         // Save static evaluation into the transposition table
-        tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
+        tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, ss->staticEval);
     }
 
     // Use static evaluation difference to improve quiet move ordering (~4 Elo)
@@ -981,20 +986,20 @@ moves_loop: // When in check, search starts here
           // Reduced depth of the next LMR search
           int lmrDepth = newDepth - r;
 
-          if (   capture
+          if ( capture
               || givesCheck)
           {
               // Futility pruning for captures (~2 Elo)
               if (   !givesCheck
                   && lmrDepth < 7
                   && !ss->inCheck
-                  && ss->staticEval + 197 + 248 * lmrDepth + PieceValue[EG][pos.piece_on(to_sq(move))]
+                  && ss->staticEval + (type_of(move)==EN_PASSANT)*epImprovement + 197 + 248 * lmrDepth + PieceValue[EG][pos.piece_on(to_sq(move))]
                    + captureHistory[movedPiece][to_sq(move)][type_of(pos.piece_on(to_sq(move)))] / 7 < alpha)
                   continue;
 
               Bitboard occupied;
               // SEE based pruning (~11 Elo)
-              if (!pos.see_ge(move, occupied, Value(-205) * depth))
+              if (!pos.see_ge(move, occupied, Value(-205) * depth) && type_of(move)!=EN_PASSANT)
               {
                  if (depth < 2 - capture)
                     continue;
@@ -1643,7 +1648,7 @@ moves_loop: // When in check, search starts here
   //En-passant search is a substitute to the static eval for the main search. It returns max of staying put and
   //qsearch result of executing the en-passant moves.
 
-  Value en_passant_search(Position& pos, Stack *ss) {
+  Value en_passant_search(Position& pos, Stack *ss, Value beta, int& improvement) {
 	  // Step 1. Static eval of the position
 
 	  Value bestValue=-VALUE_INFINITE;
@@ -1655,7 +1660,10 @@ moves_loop: // When in check, search starts here
 
 	  //Step 1. Static evaluation of position
 
-	  bestValue=evaluate(pos);
+	  bestValue=ss->staticEval;
+
+	  if(bestValue >= beta)
+		  return bestValue;
 
 	  //Step 2. Generate en-passant captures and qsearch them.
 
@@ -1666,18 +1674,29 @@ moves_loop: // When in check, search starts here
 	  while(cur++<endMoves)
 	  {
 		  move=*(cur-1);
-		  if(!pos.legal(move))
+
+		  if(move == ss->excludedMove || !pos.legal(move))
 				  continue;
 
 		  givesCheck = pos.gives_check(move);
 
 		  pos.do_move(move,st,givesCheck);
 
-		  bestValue=std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-VALUE_INFINITE,-bestValue));
+		  bestValue=std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-beta,-bestValue));
 
 		  pos.undo_move(move);
 
+		  if(bestValue>=beta)
+		  {
+			  improvement=bestValue-ss->staticEval;
+			  return bestValue;
+		  }
+
 	  }
+
+	  improvement=bestValue-ss->staticEval;
+
+	  assert(improvement>=0);
 
 	  return bestValue;
 

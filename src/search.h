@@ -44,6 +44,7 @@ struct Stack {
   Move excludedMove;
   Move killers[2];
   Value staticEval;
+  Value epEval; //stores the en-passant corrected static eval
   int statScore;
   int moveCount;
   bool inCheck;

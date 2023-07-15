@@ -118,7 +118,7 @@ namespace {
   template <NodeType nodeType>
   Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
 
-  Value en_passant_search(Position& pos, Stack* ss, Value beta, int& improvement);
+  Value en_passant_search(Position& pos, Stack* ss);
 
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply, int r50c);
@@ -708,7 +708,7 @@ namespace {
     if (ss->inCheck)
     {
         // Skip early pruning when in check
-        ss->staticEval = eval = VALUE_NONE;
+        ss-> epEval = ss->staticEval = eval = VALUE_NONE;
         improving = false;
         improvement = 0;
         goto moves_loop;
@@ -717,20 +717,26 @@ namespace {
     {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
         Eval::NNUE::hint_common_parent_position(pos);
-        eval = ss->staticEval;
-        eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss,beta,epImprovement);
+        ss->epEval = eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss);
+        assert(ss->epEval-ss->staticEval>=0);
     }
     else if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
-        ss->staticEval = tte->eval();
-        if (ss->staticEval == VALUE_NONE)
+        ss->epEval = eval = tte->eval();
+        if (ss->epEval == VALUE_NONE)
+        {
             ss->staticEval = evaluate(pos);
-
-        else if (PvNode)
-            Eval::NNUE::hint_common_parent_position(pos);
-
-        eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss,beta,epImprovement);
+        	ss->epEval = eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss);
+        	assert(ss->epEval-ss->staticEval>=0);
+        }
+        else
+        {
+        	ss->staticEval = pos.ep_square() == SQ_NONE ? ss->epEval : evaluate(pos);
+        	ss->epEval=std::max(ss->staticEval,ss->epEval); //safeguard against bad epEval in tt
+        	if(PvNode)
+        		Eval::NNUE::hint_common_parent_position(pos);
+        }
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -740,10 +746,13 @@ namespace {
     else
     {
         ss->staticEval = evaluate(pos);
-        eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss,beta,epImprovement);
+        ss->epEval = eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss);
+        assert(ss->epEval-ss->staticEval>=0);
         // Save static evaluation into the transposition table
-        tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, ss->staticEval);
+        tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, ss->epEval);
     }
+
+    epImprovement=ss->epEval - ss->staticEval;
 
     // Use static evaluation difference to improve quiet move ordering (~4 Elo)
     if (is_ok((ss-1)->currentMove) && !(ss-1)->inCheck && !priorCapture)
@@ -756,8 +765,8 @@ namespace {
     // static evaluation and the previous static evaluation at our turn (if we were
     // in check at our previous move we look at the move prior to it). The improvement
     // margin and the improving flag are used in various pruning heuristics.
-    improvement =   (ss-2)->staticEval != VALUE_NONE ? ss->staticEval - (ss-2)->staticEval
-                  : (ss-4)->staticEval != VALUE_NONE ? ss->staticEval - (ss-4)->staticEval
+    improvement =   (ss-2)->epEval != VALUE_NONE ? ss->epEval - (ss-2)->epEval
+                  : (ss-4)->epEval != VALUE_NONE ? ss->epEval - (ss-4)->epEval
                   :                                    173;
     improving = improvement > 0;
 
@@ -889,7 +898,7 @@ namespace {
                 if (value >= probCutBeta)
                 {
                     // Save ProbCut data into transposition table
-                    tte->save(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER, depth - 3, move, ss->staticEval);
+                    tte->save(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER, depth - 3, move, ss->epEval);
                     return value;
                 }
             }
@@ -1039,7 +1048,7 @@ moves_loop: // When in check, search starts here
               // Futility pruning: parent node (~13 Elo)
               if (   !ss->inCheck
                   && lmrDepth < 12
-                  && ss->staticEval + 112 + 138 * lmrDepth <= alpha)
+                  && ss->epEval + 112 + 138 * lmrDepth <= alpha)
                   continue;
 
               lmrDepth = std::max(lmrDepth, 0);
@@ -1400,7 +1409,7 @@ moves_loop: // When in check, search starts here
         tte->save(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
                   bestValue >= beta ? BOUND_LOWER :
                   PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
-                  depth, bestMove, ss->staticEval);
+                  depth, bestMove, ss->epEval);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
@@ -1480,7 +1489,7 @@ moves_loop: // When in check, search starts here
         if (ss->ttHit)
         {
             // Never assume anything about values stored in TT
-            if ((ss->staticEval = bestValue = tte->eval()) == VALUE_NONE)
+            if ((pos.ep_square() != SQ_NONE) || (ss->staticEval = bestValue = tte->eval()) == VALUE_NONE)
                 ss->staticEval = bestValue = evaluate(pos);
 
             // ttValue can be used as a better position evaluation (~13 Elo)
@@ -1497,7 +1506,7 @@ moves_loop: // When in check, search starts here
         if (bestValue >= beta)
         {
             // Save gathered info in transposition table
-            if (!ss->ttHit)
+            if (!ss->ttHit && pos.ep_square() == SQ_NONE)
                 tte->save(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
                           DEPTH_NONE, MOVE_NONE, ss->staticEval);
 
@@ -1635,9 +1644,10 @@ moves_loop: // When in check, search starts here
     }
 
     // Save gathered info in transposition table
-    tte->save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
-              bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
-              ttDepth, bestMove, ss->staticEval);
+    if(pos.ep_square() == SQ_NONE)
+		tte->save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
+				  bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
+				  ttDepth, bestMove, ss->staticEval);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
@@ -1648,7 +1658,7 @@ moves_loop: // When in check, search starts here
   //En-passant search is a substitute to the static eval for the main search. It returns max of staying put and
   //qsearch result of executing the en-passant moves.
 
-  Value en_passant_search(Position& pos, Stack *ss, Value beta, int& improvement) {
+  Value en_passant_search(Position& pos, Stack *ss) {
 	  // Step 1. Static eval of the position
 
 	  Value bestValue=-VALUE_INFINITE;
@@ -1661,9 +1671,6 @@ moves_loop: // When in check, search starts here
 	  //Step 1. Static evaluation of position
 
 	  bestValue=ss->staticEval;
-
-	  if(bestValue >= beta)
-		  return bestValue;
 
 	  //Step 2. Generate en-passant captures and qsearch them.
 
@@ -1682,21 +1689,11 @@ moves_loop: // When in check, search starts here
 
 		  pos.do_move(move,st,givesCheck);
 
-		  bestValue=std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-beta,-bestValue));
+		  bestValue=std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-VALUE_INFINITE,-bestValue));
 
 		  pos.undo_move(move);
 
-		  if(bestValue>=beta)
-		  {
-			  improvement=bestValue-ss->staticEval;
-			  return bestValue;
-		  }
-
 	  }
-
-	  improvement=bestValue-ss->staticEval;
-
-	  assert(improvement>=0);
 
 	  return bestValue;
 

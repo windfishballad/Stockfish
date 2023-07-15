@@ -1235,8 +1235,8 @@ bool Position::has_game_cycle(int ply) const {
               if (color_of(piece_on(empty(s1) ? s2 : s1)) != side_to_move())
                   continue;
 
-              // For repetitions strictly before root, require one more
-              if (ply ==i || stp->repetition)
+              // For repetitions strictly before root or at root for higher order PV, require one more
+              if (stp->repetition)
                   return true;
           }
       }

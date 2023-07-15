@@ -60,7 +60,7 @@ using namespace Search;
 namespace {
 
   // Different node types, used as a template parameter
-  enum NodeType { NonPV, PV, Root };
+  enum NodeType { NonPV, PV, Root, EP};
 
   // Futility margin
   Value futility_margin(Depth d, bool improving) {
@@ -718,7 +718,6 @@ namespace {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
         Eval::NNUE::hint_common_parent_position(pos);
         ss->epEval = eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss);
-        assert(ss->epEval-ss->staticEval>=0);
     }
     else if (ss->ttHit)
     {
@@ -728,12 +727,11 @@ namespace {
         {
             ss->staticEval = evaluate(pos);
         	ss->epEval = eval = pos.ep_square() == SQ_NONE ? ss->staticEval : en_passant_search(pos,ss);
-        	assert(ss->epEval-ss->staticEval>=0);
         }
         else
         {
         	ss->staticEval = pos.ep_square() == SQ_NONE ? ss->epEval : evaluate(pos);
-        	ss->epEval=std::max(ss->staticEval,ss->epEval); //safeguard against bad epEval in tt
+        	ss->epEval=std::max(ss->staticEval,ss->epEval); //on tthit not guaranteed due to 50mr decay mismatch
         	if(PvNode)
         		Eval::NNUE::hint_common_parent_position(pos);
         }
@@ -1425,9 +1423,10 @@ moves_loop: // When in check, search starts here
 
     static_assert(nodeType != Root);
     constexpr bool PvNode = nodeType == PV;
+    constexpr bool EpNode = nodeType == EP;
 
     assert(alpha >= -VALUE_INFINITE && alpha < beta && beta <= VALUE_INFINITE);
-    //assert(PvNode || (alpha == beta - 1));
+    assert(PvNode || EpNode || (alpha == beta - 1));
     assert(depth <= 0);
 
     Move pv[MAX_PLY+1];
@@ -1475,7 +1474,7 @@ moves_loop: // When in check, search starts here
     pvHit = ss->ttHit && tte->is_pv();
 
     // At non-PV nodes we check for an early TT cutoff
-    if (  !PvNode
+    if (  !(PvNode || EpNode)
         && tte->depth() >= ttDepth
         && ttValue != VALUE_NONE // Only in case of TT access race or if !ttHit
         && (tte->bound() & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
@@ -1513,7 +1512,7 @@ moves_loop: // When in check, search starts here
             return bestValue;
         }
 
-        if (PvNode && bestValue > alpha)
+        if ((PvNode || EpNode) && bestValue > alpha)
             alpha = bestValue;
 
         futilityBase = bestValue + 200;
@@ -1625,7 +1624,7 @@ moves_loop: // When in check, search starts here
                 if (PvNode) // Update pv even in fail-high case
                     update_pv(ss->pv, move, (ss+1)->pv);
 
-                if (PvNode && value < beta) // Update alpha here!
+                if ((PvNode || EpNode) && value < beta) // Update alpha here!
                     alpha = value;
                 else
                     break; // Fail high
@@ -1689,7 +1688,7 @@ moves_loop: // When in check, search starts here
 
 		  pos.do_move(move,st,givesCheck);
 
-		  bestValue=std::max(bestValue,-qsearch<NonPV>(pos,ss+1,-VALUE_INFINITE,-bestValue));
+		  bestValue=std::max(bestValue,-qsearch<EP>(pos,ss+1,-VALUE_INFINITE,-bestValue));
 
 		  pos.undo_move(move);
 

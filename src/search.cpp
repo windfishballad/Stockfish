@@ -118,6 +118,8 @@ namespace {
   template <NodeType nodeType>
   Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
 
+  Value step_ahead(Position& pos, Stack *ss, Move m);
+
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply, int r50c);
   void update_pv(Move* pv, Move move, const Move* childPv);
@@ -545,7 +547,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval, maxValue, probCutBeta;
-    bool givesCheck, improving, priorCapture, singularQuietLMR;
+    bool givesCheck, improving, priorCapture, singularQuietLMR, enPassant;
     bool capture, moveCountPruning, ttCapture;
     Piece movedPiece;
     int moveCount, captureCount, quietCount, improvement;
@@ -716,6 +718,10 @@ namespace {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
         Eval::NNUE::hint_common_parent_position(pos);
         eval = ss->staticEval;
+    }
+    else if (ss->goodStaticEval)
+    {
+    	eval = ss->staticEval;
     }
     else if (ss->ttHit)
     {
@@ -960,6 +966,7 @@ moves_loop: // When in check, search starts here
       capture = pos.capture_stage(move);
       movedPiece = pos.moved_piece(move);
       givesCheck = pos.gives_check(move);
+      enPassant = type_of(move) == EN_PASSANT;
 
       // Calculate new depth for this move
       newDepth = depth - 1;
@@ -986,7 +993,7 @@ moves_loop: // When in check, search starts here
               if (   !givesCheck
                   && lmrDepth < 7
                   && !ss->inCheck
-                  && ss->staticEval + 197 + 248 * lmrDepth + PieceValue[EG][pos.piece_on(to_sq(move))]
+                  && ((enPassant) ? -step_ahead(pos,ss,move) : ss->staticEval) + 197 + 248 * lmrDepth + PieceValue[EG][pos.piece_on(to_sq(move))]
                    + captureHistory[movedPiece][to_sq(move)][type_of(pos.piece_on(to_sq(move)))] / 7 < alpha)
                   continue;
 
@@ -1248,6 +1255,7 @@ moves_loop: // When in check, search starts here
 
       // Step 19. Undo move
       pos.undo_move(move);
+      (ss+1)->goodStaticEval=false;
 
       assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
@@ -1423,7 +1431,7 @@ moves_loop: // When in check, search starts here
     Move ttMove, move, bestMove;
     Depth ttDepth;
     Value bestValue, value, ttValue, futilityValue, futilityBase;
-    bool pvHit, givesCheck, capture;
+    bool pvHit, givesCheck, capture, enPassant;
     int moveCount;
 
     // Step 1. Initialize node
@@ -1531,6 +1539,7 @@ moves_loop: // When in check, search starts here
 
         givesCheck = pos.gives_check(move);
         capture = pos.capture_stage(move);
+        enPassant = type_of(move) == EN_PASSANT;
 
         moveCount++;
 
@@ -1546,7 +1555,7 @@ moves_loop: // When in check, search starts here
                 if (moveCount > 2)
                     continue;
 
-                futilityValue = futilityBase + PieceValue[EG][pos.piece_on(to_sq(move))];
+                futilityValue = (enPassant ? -step_ahead(pos,ss,move) + 200 : futilityBase) + PieceValue[EG][pos.piece_on(to_sq(move))];
 
                 if (futilityValue <= alpha)
                 {
@@ -1594,6 +1603,7 @@ moves_loop: // When in check, search starts here
         pos.do_move(move, st, givesCheck);
         value = -qsearch<nodeType>(pos, ss+1, -beta, -alpha, depth - 1);
         pos.undo_move(move);
+        (ss+1)->goodStaticEval = false;
 
         assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
@@ -1635,6 +1645,37 @@ moves_loop: // When in check, search starts here
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
     return bestValue;
+  }
+
+  //En-passant search improves on the static eval if executing en-passant would improve it more than its
+  //typical futility margin. Only to use is m does not give check.
+
+Value step_ahead(Position& pos, Stack *ss, Move m) {
+	  // Step 1. Static eval of the position
+
+	  StateInfo st;
+	  TTEntry* tte;
+	  Key posKey;
+
+	  pos.do_move(m, st);
+	  posKey = pos.key();
+	  tte = TT.probe(posKey, ss->ttHit);
+
+	  if(ss->ttHit && tte->eval() != VALUE_NONE)
+	  {
+		  (ss+1)->staticEval = -tte->eval();
+	  }
+	  else
+	  {
+		  (ss+1)->staticEval = evaluate(pos);
+		  tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, (ss+1)->staticEval);
+	  }
+
+	  (ss+1)->goodStaticEval=true;
+
+	  pos.undo_move(m);
+
+	  return (ss+1)->staticEval;
   }
 
 

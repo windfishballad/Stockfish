@@ -44,6 +44,7 @@ struct Stack {
   Move excludedMove;
   Move killers[2];
   Value staticEval;
+  bool goodStaticEval; //no need to evaluate pos if staticEval was already put in the stack somehow
   int statScore;
   int moveCount;
   bool inCheck;

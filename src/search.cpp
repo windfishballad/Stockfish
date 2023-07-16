@@ -1129,6 +1129,10 @@ moves_loop: // When in check, search starts here
                    && move == ss->killers[0]
                    && (*contHist[0])[movedPiece][to_sq(move)] >= 5168)
               extension = 1;
+
+          // Good en-passant captures extensions
+          else if ( enPassant && !givesCheck && -step_ahead(pos,ss,move) > ss->staticEval + PawnValueEg +200)
+        	  extension = 1;
       }
 
       // Add extension to new depth
@@ -1652,6 +1656,12 @@ moves_loop: // When in check, search starts here
 
 Value step_ahead(Position& pos, Stack *ss, Move m) {
 	  // Step 1. Static eval of the position
+
+	assert(type_of(m) == EN_PASSANT);
+	assert(pos.legal(m));
+
+	if((ss+1)->goodStaticEval)
+		return (ss+1)->staticEval; //job may be already done if function was queried previously during search of move
 
 	  StateInfo st;
 	  TTEntry* tte;

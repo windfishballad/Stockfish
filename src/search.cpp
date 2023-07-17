@@ -1929,8 +1929,12 @@ string UCI::pv(const Position& pos, Depth depth) {
       Depth d = updated ? depth : std::max(1, depth - 1);
       Value v = updated ? rootMoves[i].uciScore : rootMoves[i].previousScore;
 
+      //If a move worth -VALUE_INFINITE gets in the front, it implies that the 'best move' became proven loss in the interrupted search
+      //but was not yet so in the previous call to search. A non proven loss is pushed to the front, but the best guess is it's also lost.
+      //So just report worst non-terminal result.
+
       if (v == -VALUE_INFINITE)
-          v = VALUE_ZERO;
+          v = VALUE_TB_LOSS_IN_MAX_PLY + 1;
 
       bool tb = TB::RootInTB && abs(v) < VALUE_MATE_IN_MAX_PLY;
       v = tb ? rootMoves[i].tbScore : v;

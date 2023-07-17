@@ -740,6 +740,8 @@ namespace {
 
     //Let qsearches called from here know they don't need to recompute static eval.
 
+    ss->goodStaticEval=true;
+
 
     // Use static evaluation difference to improve quiet move ordering (~4 Elo)
     if (is_ok((ss-1)->currentMove) && !(ss-1)->inCheck && !priorCapture)

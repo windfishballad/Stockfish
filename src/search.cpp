@@ -243,9 +243,8 @@ void MainThread::search() {
   bestPreviousScore = bestThread->rootMoves[0].score;
   bestPreviousAverageScore = bestThread->rootMoves[0].averageScore;
 
-  // Send again PV info if we have a new best thread
-  if (bestThread != this)
-      sync_cout << UCI::pv(bestThread->rootPos, bestThread->completedDepth) << sync_endl;
+  // Send again PV info
+  sync_cout << UCI::pv(bestThread->rootPos, bestThread->completedDepth) << sync_endl;
 
   sync_cout << "bestmove " << UCI::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
 
@@ -376,6 +375,12 @@ void Thread::search() {
               // search the already searched PV lines are preserved.
               std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast);
 
+              //If alpha is not yet proven loss, rootMoves[0] failed as a proven mated in,
+              //and some subsequent moves failed low but are not proven losses, better to
+              //search the first non-proven loss as ttMove.
+
+              std::stable_sort(rootMoves.begin() + pvIdx, rootMoves.begin() + pvLast,comp);
+
               // If search has been stopped, we break immediately. Sorting is
               // safe because RootMoves is still valid, although it refers to
               // the previous iteration.
@@ -417,13 +422,13 @@ void Thread::search() {
           // Sort the PV lines searched so far and update the GUI
           std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
 
+          //Bring proven wins in the front and proven losses in the back
+          std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvLast, comp);
+
           if (    mainThread
               && (Threads.stop || pvIdx + 1 == multiPV || Time.elapsed() > 3000))
               sync_cout << UCI::pv(rootPos, rootDepth) << sync_endl;
       }
-
-      //Bring proven wins in the front and proven losses in the back
-      std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvLast, comp);
 
       if (!Threads.stop)
           completedDepth = rootDepth;
@@ -495,6 +500,8 @@ void Thread::search() {
       mainThread->iterValue[iterIdx] = bestValue;
       iterIdx = (iterIdx + 1) & 3;
   }
+
+
 
   if (!mainThread)
       return;
@@ -1284,47 +1291,51 @@ moves_loop: // When in check, search starts here
           else
         	  rm.score = -VALUE_INFINITE;
 
-         //Never update UCI info if it contains a proven result and value is not a shorter one
+          updateUci=false;
 
-         if(abs(rm.uciScore) >= TB_WIN_IN_MAX_PLY && abs(value) <= abs(rm.uciScore))
-        	 updateUci=false;
-         else
+         //Never update UCI info if it contains a proven result and value is not a shorter one
+         //In case of equality updating is better to get a PV since first encounter may have been a fail high
+         //from a non_PV search.
+
+         if(abs(rm.uciScore) < VALUE_TB_WIN_IN_MAX_PLY || abs(value) >= abs(rm.uciScore))
          {
         	 if(value > alpha && value < beta)
         	 {
-        		 uciUpdate = true;
+        		 updateUci = true;
         		 rm.uciScore = value;
-        		 rm.lowerBound = rm.upperBound = false;
+        		 rm.scoreLowerbound = rm.scoreUpperbound = false;
         	 }
 
         	 if(value <= alpha) // Decisive win scores are not proven on a fail low
         	 {
-        		 if(value <= TB_LOSS_IN_MAX_PLY)
+        		 if(value <= VALUE_TB_LOSS_IN_MAX_PLY)
         		 {
-        			 uciUpdate=true;
+        			 updateUci=true;
         			 rm.uciScore = value;
-        			 rm.lowerBound = rm.upperBound = false;
+        			 rm.scoreLowerbound = rm.scoreUpperbound = false;
         		 }
         		 else if(moveCount == 1)
         		 {
-        			 rm.uciScore = alpha;
-        			 rm.lowerBound = false;
-        			 rm.upperBound = true;
+        			 updateUci=true;
+        			 rm.uciScore = std::min(alpha,VALUE_TB_WIN_IN_MAX_PLY-1);
+        			 rm.scoreLowerbound = false;
+        			 rm.scoreUpperbound = true;
         		 }
         	 }
-        	 if(value > beta) // Decisive loss scores are not proven on a fail low
+        	 if(value > beta) // Decisive losses scores are not proven on a fail high
         	 {
-        		 if(value >= TB_WIN_IN_MAX_PLY)
+        		 if(value >= VALUE_TB_WIN_IN_MAX_PLY)
         		 {
-        			 uciUpdate=true;
+        			 updateUci=true;
         			 rm.uciScore = value;
-        			 rm.lowerBound = rm.upperBound = false;
+        			 rm.scoreLowerbound = rm.scoreUpperbound = false;
         		 }
         		 else
         		 {
-        			 rm.uciScore = beta;
-        			 rm.lowerBound = true;
-        			 rm.upperBound = false;
+        			 updateUci=true;
+        			 rm.uciScore = std::max(beta,VALUE_TB_LOSS_IN_MAX_PLY-1);
+        			 rm.scoreLowerbound = true;
+        			 rm.scoreUpperbound = false;
         		 }
         	 }
 
@@ -1333,20 +1344,17 @@ moves_loop: // When in check, search starts here
 
           if(updateUci)
           {
-        	  if()
-
         	  rm.selDepth = thisThread->selDepth;
 
 			  rm.pv.resize(1);
 
-			  assert((ss+1)->pv);
-
-			  for (Move* m = (ss+1)->pv; *m != MOVE_NONE; ++m)
-				  rm.pv.push_back(*m);
+			  if((ss+1)->pv) //Fail lows coming from the non-PV search would not contain refutation.
+				  for (Move* m = (ss+1)->pv; *m != MOVE_NONE; ++m)
+					  rm.pv.push_back(*m);
           }
 
       }
-      //Do not update UCI if value is a less precise proven result than already avaliable
+
 
 
       if (value > bestValue)

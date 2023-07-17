@@ -84,8 +84,8 @@ using RootMoves = std::vector<RootMove>;
 
 //Comparator based on UCI scores. All non-terminal results are equal.
 
-inline bool comp(RootMove& a, RootMove& b) {
-	return a.uciScore < b.uciScore && (a.uciScore <= VALUE_TB_LOSS_IN_MAX_PLY || b.uciScore >= VALUE_TB_WIN_IN_MAX_PLY);
+inline bool comp(RootMove a, RootMove b) {
+	return a.uciScore > b.uciScore && (a.uciScore <= VALUE_TB_LOSS_IN_MAX_PLY || b.uciScore >= VALUE_TB_WIN_IN_MAX_PLY);
 }
 
 

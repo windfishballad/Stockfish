@@ -1920,7 +1920,8 @@ string UCI::pv(const Position& pos, Depth depth) {
 
   for (size_t i = 0; i < multiPV; ++i)
   {
-      bool updated = rootMoves[i].score != -VALUE_INFINITE;
+	  //Proven decisive results are sticky in uciScore field.
+      bool updated = (rootMoves[i].score != -VALUE_INFINITE || abs(rootMoves[i].uciScore) >= VALUE_TB_WIN_IN_MAX_PLY);
 
       if (depth == 1 && !updated && i > 0)
           continue;

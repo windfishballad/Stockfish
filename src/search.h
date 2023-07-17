@@ -71,7 +71,7 @@ struct RootMove {
   Value score = -VALUE_INFINITE;
   Value previousScore = -VALUE_INFINITE;
   Value averageScore = -VALUE_INFINITE;
-  Value uciScore = -VALUE_INFINITE;
+  Value uciScore = VALUE_TB_LOSS_IN_MAX_PLY + 1;
   bool scoreLowerbound = false;
   bool scoreUpperbound = false;
   int selDepth = 0;
@@ -81,6 +81,12 @@ struct RootMove {
 };
 
 using RootMoves = std::vector<RootMove>;
+
+//Comparator based on UCI scores. All non-terminal results are equal.
+
+inline bool comp(RootMove& a, RootMove& b) {
+	return a.uciScore < b.uciScore && (a.uciScore <= VALUE_TB_LOSS_IN_MAX_PLY || b.uciScore >= VALUE_TB_WIN_IN_MAX_PLY);
+}
 
 
 /// LimitsType struct stores information sent by GUI about available time to

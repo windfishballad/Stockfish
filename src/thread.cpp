@@ -228,18 +228,16 @@ Thread* ThreadPool::get_best_thread() const {
         votes[th->rootMoves[0].pv[0]] += thread_value(th);
 
     for (Thread* th : threads)
-        if (abs(bestThread->rootMoves[0].score) >= VALUE_TB_WIN_IN_MAX_PLY)
+        if (abs(bestThread->rootMoves[0].score) >= VALUE_TB_WIN_IN_MAX_PLY || abs(th->rootMoves[0].score) >= VALUE_TB_WIN_IN_MAX_PLY)
         {
-            // Make sure we pick the shortest mate / TB conversion or stave off mate the longest
-            if (th->rootMoves[0].score > bestThread->rootMoves[0].score)
+            // All decisive results contained in rootMoves[0] are proven at root level. The shortest one is the sharpest.
+            if (abs(th->rootMoves[0].score) > abs(bestThread->rootMoves[0].score))
                 bestThread = th;
         }
-        else if (   th->rootMoves[0].score >= VALUE_TB_WIN_IN_MAX_PLY
-                 || (   th->rootMoves[0].score > VALUE_TB_LOSS_IN_MAX_PLY
-                     && (   votes[th->rootMoves[0].pv[0]] > votes[bestThread->rootMoves[0].pv[0]]
+        else if (votes[th->rootMoves[0].pv[0]] > votes[bestThread->rootMoves[0].pv[0]]
                          || (   votes[th->rootMoves[0].pv[0]] == votes[bestThread->rootMoves[0].pv[0]]
                              &&   thread_value(th) * int(th->rootMoves[0].pv.size() > 2)
-                                > thread_value(bestThread) * int(bestThread->rootMoves[0].pv.size() > 2)))))
+                                > thread_value(bestThread) * int(bestThread->rootMoves[0].pv.size() > 2)))
             bestThread = th;
 
     return bestThread;

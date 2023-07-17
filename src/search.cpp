@@ -422,6 +422,9 @@ void Thread::search() {
               sync_cout << UCI::pv(rootPos, rootDepth) << sync_endl;
       }
 
+      //Bring proven wins in the front and proven losses in the back
+      std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvLast, comp);
+
       if (!Threads.stop)
           completedDepth = rootDepth;
 
@@ -546,7 +549,7 @@ namespace {
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval, maxValue, probCutBeta;
     bool givesCheck, improving, priorCapture, singularQuietLMR;
-    bool capture, moveCountPruning, ttCapture;
+    bool capture, moveCountPruning, ttCapture, updateUci;
     Piece movedPiece;
     int moveCount, captureCount, quietCount, improvement;
 
@@ -1268,41 +1271,83 @@ moves_loop: // When in check, search starts here
           // PV move or new best move?
           if (moveCount == 1 || value > alpha)
           {
-              rm.score =  rm.uciScore = value;
-              rm.selDepth = thisThread->selDepth;
-              rm.scoreLowerbound = rm.scoreUpperbound = false;
-
-              if (value >= beta)
-              {
-                  rm.scoreLowerbound = true;
-                  rm.uciScore = beta;
-              }
-              else if (value <= alpha)
-              {
-                  rm.scoreUpperbound = true;
-                  rm.uciScore = alpha;
-              }
-
-              rm.pv.resize(1);
-
-              assert((ss+1)->pv);
-
-              for (Move* m = (ss+1)->pv; *m != MOVE_NONE; ++m)
-                  rm.pv.push_back(*m);
+              rm.score = value;
 
               // We record how often the best move has been changed in each iteration.
               // This information is used for time management. In MultiPV mode,
               // we must take care to only do this for the first PV line.
+
               if (   moveCount > 1
-                  && !thisThread->pvIdx)
-                  ++thisThread->bestMoveChanges;
+                                && !thisThread->pvIdx)
+                                ++thisThread->bestMoveChanges;
           }
           else
-              // All other moves but the PV, are set to the lowest value: this
-              // is not a problem when sorting because the sort is stable and the
-              // move position in the list is preserved - just the PV is pushed up.
-              rm.score = -VALUE_INFINITE;
+        	  rm.score = -VALUE_INFINITE;
+
+         //Never update UCI info if it contains a proven result and value is not a shorter one
+
+         if(abs(rm.uciScore) >= TB_WIN_IN_MAX_PLY && abs(value) <= abs(rm.uciScore))
+        	 updateUci=false;
+         else
+         {
+        	 if(value > alpha && value < beta)
+        	 {
+        		 uciUpdate = true;
+        		 rm.uciScore = value;
+        		 rm.lowerBound = rm.upperBound = false;
+        	 }
+
+        	 if(value <= alpha) // Decisive win scores are not proven on a fail low
+        	 {
+        		 if(value <= TB_LOSS_IN_MAX_PLY)
+        		 {
+        			 uciUpdate=true;
+        			 rm.uciScore = value;
+        			 rm.lowerBound = rm.upperBound = false;
+        		 }
+        		 else if(moveCount == 1)
+        		 {
+        			 rm.uciScore = alpha;
+        			 rm.lowerBound = false;
+        			 rm.upperBound = true;
+        		 }
+        	 }
+        	 if(value > beta) // Decisive loss scores are not proven on a fail low
+        	 {
+        		 if(value >= TB_WIN_IN_MAX_PLY)
+        		 {
+        			 uciUpdate=true;
+        			 rm.uciScore = value;
+        			 rm.lowerBound = rm.upperBound = false;
+        		 }
+        		 else
+        		 {
+        			 rm.uciScore = beta;
+        			 rm.lowerBound = true;
+        			 rm.upperBound = false;
+        		 }
+        	 }
+
+         }
+
+
+          if(updateUci)
+          {
+        	  if()
+
+        	  rm.selDepth = thisThread->selDepth;
+
+			  rm.pv.resize(1);
+
+			  assert((ss+1)->pv);
+
+			  for (Move* m = (ss+1)->pv; *m != MOVE_NONE; ++m)
+				  rm.pv.push_back(*m);
+          }
+
       }
+      //Do not update UCI if value is a less precise proven result than already avaliable
+
 
       if (value > bestValue)
       {

@@ -228,10 +228,10 @@ Thread* ThreadPool::get_best_thread() const {
         votes[th->rootMoves[0].pv[0]] += thread_value(th);
 
     for (Thread* th : threads)
-        if (abs(bestThread->rootMoves[0].score) >= VALUE_TB_WIN_IN_MAX_PLY || abs(th->rootMoves[0].score) >= VALUE_TB_WIN_IN_MAX_PLY)
+        if (abs(bestThread->rootMoves[0].uciScore) >= VALUE_TB_WIN_IN_MAX_PLY || abs(th->rootMoves[0].uciScore) >= VALUE_TB_WIN_IN_MAX_PLY)
         {
-            // All decisive results contained in rootMoves[0] are proven at root level. The shortest one is the sharpest.
-            if (abs(th->rootMoves[0].score) > abs(bestThread->rootMoves[0].score))
+            // All decisive results contained in rootMoves[0].uciScore are the sharpest proven result at root level.
+            if (abs(th->rootMoves[0].uciScore) > abs(bestThread->rootMoves[0].uciScore))
                 bestThread = th;
         }
         else if (votes[th->rootMoves[0].pv[0]] > votes[bestThread->rootMoves[0].pv[0]]

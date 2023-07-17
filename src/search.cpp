@@ -515,6 +515,7 @@ namespace {
     constexpr bool PvNode = nodeType != NonPV;
     constexpr bool rootNode = nodeType == Root;
 
+
     // Check if we have an upcoming move that draws by repetition, or
     // if the opponent had an alternative move earlier to this position.
     if (   !rootNode
@@ -737,6 +738,9 @@ namespace {
         tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
 
+    //Let qsearches called from here know they don't need to recompute static eval.
+
+
     // Use static evaluation difference to improve quiet move ordering (~4 Elo)
     if (is_ok((ss-1)->currentMove) && !(ss-1)->inCheck && !priorCapture)
     {
@@ -760,7 +764,10 @@ namespace {
     {
         value = qsearch<NonPV>(pos, ss, alpha - 1, alpha);
         if (value < alpha)
+        {
+        	ss->goodStaticEval=false;
             return value;
+        }
     }
 
     // Step 8. Futility pruning: child node (~40 Elo).
@@ -770,7 +777,10 @@ namespace {
         &&  eval - futility_margin(depth, improving) - (ss-1)->statScore / 306 >= beta
         &&  eval >= beta
         &&  eval < 24923) // larger than VALUE_KNOWN_WIN, but smaller than TB wins
+    {
+    	ss->goodStaticEval=false;
         return eval;
+    }
 
     // Step 9. Null move search with verification search (~35 Elo)
     if (   !PvNode
@@ -804,7 +814,10 @@ namespace {
             nullValue = std::min(nullValue, VALUE_TB_WIN_IN_MAX_PLY-1);
 
             if (thisThread->nmpMinPly || depth < 14)
+            {
+            	ss->goodStaticEval=false;
                 return nullValue;
+            }
 
             assert(!thisThread->nmpMinPly); // Recursive verification is not allowed
 
@@ -817,7 +830,10 @@ namespace {
             thisThread->nmpMinPly = 0;
 
             if (v >= beta)
+            {
+            	ss->goodStaticEval=false;
                 return nullValue;
+            }
         }
     }
 
@@ -829,7 +845,14 @@ namespace {
         depth -= 2 + 2 * (ss->ttHit && tte->depth() >= depth);
 
     if (depth <= 0)
-        return qsearch<PV>(pos, ss, alpha, beta);
+    {
+        Value q = qsearch<PV>(pos, ss, alpha, beta);
+        ss->goodStaticEval=false;
+        return q;
+    }
+
+    //No more qsearch will be called on this node.
+    ss->goodStaticEval = false;
 
     if (    cutNode
         &&  depth >= 8
@@ -1471,9 +1494,15 @@ moves_loop: // When in check, search starts here
     {
         if (ss->ttHit)
         {
+        	if(ss->goodStaticEval)
+        		bestValue = ss->staticEval;
+
             // Never assume anything about values stored in TT
-            if ((ss->staticEval = bestValue = tte->eval()) == VALUE_NONE)
+        	else if (tte->eval() == VALUE_NONE)
                 ss->staticEval = bestValue = evaluate(pos);
+            else
+            	bestValue=ss->staticEval=tte->eval();
+
 
             // ttValue can be used as a better position evaluation (~13 Elo)
             if (    ttValue != VALUE_NONE
@@ -1482,7 +1511,10 @@ moves_loop: // When in check, search starts here
         }
         else
             // In case of null move search use previous static eval with a different sign
-            ss->staticEval = bestValue = (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
+        	if(ss->goodStaticEval)
+        		bestValue = ss->staticEval;
+        	else
+        		ss->staticEval = bestValue = (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
                                                                           : -(ss-1)->staticEval;
 
         // Stand pat. Return immediately if static value is at least beta

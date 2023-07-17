@@ -16,38 +16,27 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <iostream>
+#ifndef RMOBUTILS_H_INCLUDED
+#define RMOBUTILS_H_INCLUDED
 
-#include "bitboard.h"
-#include "position.h"
-#include "psqt.h"
-#include "rmobutils.h"
-#include "search.h"
-#include "syzygy/tbprobe.h"
-#include "thread.h"
-#include "tt.h"
-#include "uci.h"
+#include "types.h"
 
-using namespace Stockfish;
+namespace Stockfish {
 
-int main(int argc, char* argv[]) {
+namespace rMob {
 
-  std::cout << engine_info() << std::endl;
-
-  CommandLine::init(argc, argv);
-  UCI::init(Options);
-  Tune::init();
-  PSQT::init();
-  Bitboards::init();
-  Position::init();
-  rMob::init();
-  Threads.set(size_t(Options["Threads"]));
-  Search::clear(); // After threads are up
-  Eval::NNUE::init();
+extern Value gScoreConversion[MAX_G_SCORE-1][241];
 
 
-  UCI::loop(argc, argv);
+double valueToGScore(Value v, int ply);
+Value gScoreToValue(GScore g, int ply);
 
-  Threads.set(0);
-  return 0;
-}
+void init();
+
+} //namespace rMob
+
+} //namespace Stockfish
+
+
+#endif // #ifndef RMOBUTILS_H_INCLUDED
+

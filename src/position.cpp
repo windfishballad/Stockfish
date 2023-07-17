@@ -1227,6 +1227,7 @@ bool Position::has_game_cycle(int ply) const {
 
               // For repetitions strictly before root or at root for higher order PV, require one more
               if (stp->repetition)
+
                   return true;
           }
       }
@@ -1329,5 +1330,223 @@ bool Position::pos_is_ok() const {
 
   return true;
 }
+
+template<PieceType Pt, bool pinned>
+bool Position::legal_moves_by_piece(Bitboard target,int n, int &count, Square ksq) const {
+	const Color us = sideToMove;
+
+	Bitboard bb = pieces(us,Pt) & ( pinned ? blockers_for_king(us) : ~blockers_for_king(us));
+
+	if(!pinned)
+	{
+		while(bb) {
+			count+=popcount(attacks_bb<Pt>(pop_lsb(bb)) & target);
+			if(count>=n)
+				return true;
+		}
+	}
+	else
+	{
+		while(bb) {
+			Square from=pop_lsb(bb);
+			Bitboard b=attacks_bb<Pt>(from) & target;
+			while (b) {
+				count+=aligned(pop_lsb(b),from,ksq);
+				if(count>=n)
+					return true;
+			}
+		}
+	}
+
+	return false;
+
+}
+
+template<Color Us, bool pinned>
+bool Position::legal_moves_by_pawns(Bitboard target,int n, int &count, Square ksq) const {
+
+	Bitboard pawnsToMove = pieces(Us,PAWNS) & ( pinned ? blockers_for_king(Us) : ~blockers_for_king(Us));
+	Bitboard pawnsOn7 =  pawnsToMove & (Us == WHITE ? Rank7BB    : Rank2BB);
+	Bitboard targetCaptures, targetNonCaptures;
+
+	constexpr Color Them = ~Us;
+    constexpr Direction Up       = pawn_push(Us);
+    constexpr Direction Down     = pawn_push(Them);
+    constexpr Direction UpRight  = (Us == WHITE ? NORTH_EAST : SOUTH_WEST);
+    constexpr Direction UpLeft   = (Us == WHITE ? NORTH_WEST : SOUTH_EAST);
+
+
+    //Promotions first since they increment counter by 4 at once
+	if(!pinned)
+	{
+		targetNonCaptures=target & ~pieces(Them);
+		count+=4*popcount(shift<Up>(pawnsOn7) & targetNonCaptures);
+		if(count>=n)
+			return true;
+		targetCaptures=target & pieces(Them);
+		count+=4*popcount(shift<UpRight>(pawnsOn7) & targetCaptures);
+		if(count>=n)
+			return true;
+		count+=4*popcount(shift<UpLeft>(pawnsOn7) & targetCaptures);
+		if(count>=n)
+			return true;
+	}
+	else //For pinned pawn promotion only captures need to be considered
+	{
+		targetCaptures=target & pieces(Them);
+		Bitboard bb=pawnsOn7;
+		while(bb) {
+			Square from=pop_lsb(bb);
+			Bitboard b=pawn_attacks_bb(Us,from) & targetCaptures;
+			while(b) {
+				count+=4*aligned(pop_lsb(b),from,ksq);
+				if(count>=n)
+					return true;
+			}
+		}
+	}
+
+	Bitboard otherPawns = pawnsToMove & ~pawnsOn7;
+
+	//Regular moves
+	if(!pinned)
+	{
+		count+=popcount(shift<Up>(otherPawns) & targetNonCaptures);
+		if(count>n)
+			return true;
+		count+=popcount(shift<UpLeft>(otherPawns) & targetCaptures);
+		if(count>n)
+			return true;
+		count+=popcount(shift<UpRight>(otherPawns) & targetCaptures);
+		if(count>n)
+			return true;
+	}
+
+	else
+	{
+		Bitboard bb=otherPawns;
+		while(bb) {
+			Square from=pop_lsb(bb);
+			Bitboard b=pawn_attacks_bb(Us,from) & targetCaptures;
+			while(b) {
+				count+=aligned(pop_lsb(b),ksq);
+			}
+			if(count>=n)
+				return true;
+		}
+		bb=otherPawns&shift<Down>(targetNonCaptures);
+		while(bb) {
+					Square from=pop_lsb(bb);
+					Bitboard b=pawn_attacks_bb(Us,from) & targetCaptures;
+					while(b) {
+						count+=aligned(pop_lsb(b),ksq);
+					}
+					if(count>=n)
+						return true;
+		}
+	}
+
+	//En-passant moves
+	if(!pinned)
+	{
+
+	}
+	else
+	{
+
+	}
+
+
+}
+
+
+
+
+
+//Strategy is first count the moves of unpinned pieces, then
+//the legal move of pinned pieces, then the legal moves of king, and at very last special case
+//of en-passant. Only last two require iterations on all moves, all others iterate only on
+//from square.
+
+int Position::legal_moves_count(int n) const {
+
+	int count;
+	const Color us = sideToMove;
+
+
+	if(checkers())
+	{
+		if(!more_than_one(checkers()))
+		{
+			ksq = square<KING>(us);
+
+			Bitboard target=between_bb(ksq,lsb(checkers()));
+			if (legal_moves_by_piece<QUEEN,false>(target,n,&count),SQ_NONE)
+					return n;
+			if (legal_moves_by_piece<ROOK,false>(target,n,&count),SQ_NONE)
+					return n;
+			if (legal_moves_by_piece<BISHOP,false>(target,n,&count),SQ_NONE)
+					return n;
+			if (legal_moves_by_piece<KNIGHT,false>(target,n,&count),SQ_NONE)
+					return n;
+			if(us == WHITE)
+			{
+				if (legal_moves_by_pawns<WHITE,false>(target,n,&count),SQ_NONE)
+					return n;
+			}
+			else
+				if (legal_moves_by_pawns<BLACK,false>(target,n,&count),SQ_NONE)
+					return n;
+	}
+	else
+	{
+		Bitboard target= ~pos.pieces(us);
+		if (legal_moves_by_piece<QUEEN,false>(target,n,&count),SQ_NONE)
+				return n;
+		if (legal_moves_by_piece<ROOK,false>(target,n,&count),SQ_NONE)
+				return n;
+		if (legal_moves_by_piece<BISHOP,false>(target,n,&count),SQ_NONE)
+				return n;
+		if (legal_moves_by_piece<KNIGHT,false>(target,n,&count),SQ_NONE)
+				return n;
+		if(us == WHITE)
+		{
+			if (legal_moves_by_pawns<WHITE,false>(target,n,&count),SQ_NONE)
+				return n;
+		}
+		else
+			if (legal_moves_by_pawns<BLACK,false>(target,n,&count),SQ_NONE)
+				return n;
+
+		ksq = square<KING>(us);
+
+		if (legal_moves_by_piece<QUEEN,true>(target,n,&count),ksq)
+				return n;
+		if (legal_moves_by_piece<ROOK,true>(target,n,&count),ksq)
+				return n;
+		if (legal_moves_by_piece<BISHOP,true>(target,n,&count),ksq)
+				return n;
+		if (legal_moves_by_piece<KNIGHT,true>(target,n,&count),ksq)
+				return n;
+		if(us == WHITE)
+		{
+			if (legal_moves_by_pawns<WHITE,true>(target,n,&count),SQ_NONE)
+				return n;
+		}
+		else
+			if (legal_moves_by_pawns<BLACK,true>(target,n,&count),SQ_NONE)
+				return n;
+	}
+
+	//Now do King moves because need to be checked one by one for legality.
+	Bitboard b = attacks_bb<KING>(ksq) & ~pos.pieces(us);
+	while (b)
+		count+=! (attackers_to(pop_lsb(b), pieces() ^ ksq) & pieces(~us));
+		if(count == n)
+			return n;
+
+	return count;
+}
+
 
 } // namespace Stockfish

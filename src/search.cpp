@@ -545,7 +545,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth, ttDepth;
     Bound ttBound;
-    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta;
+    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta, ttCaptureImprovement;
     bool givesCheck, improving, priorCapture, singularQuietLMR;
     bool capture, moveCountPruning, ttCapture, pvHit;
     Piece movedPiece;
@@ -599,6 +599,7 @@ namespace {
     ss->doubleExtensions = (ss-1)->doubleExtensions;
     Square prevSq        = is_ok((ss-1)->currentMove) ? to_sq((ss-1)->currentMove) : SQ_NONE;
     ss->statScore        = 0;
+    ss->captureImprovement = Value(0);
 
     // Step 4. Transposition table lookup.
     excludedMove = ss->excludedMove;
@@ -612,6 +613,8 @@ namespace {
     ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
     pvHit = ss->ttHit ? tte.is_pv() : false;
+    ttCaptureImprovement = ss->ttHit ? ttEval == VALUE_NONE ? tte.captureImprovement() : Value(0) : Value(0);
+    ss->goodStaticEval = false;
 
 
 
@@ -717,7 +720,7 @@ namespace {
         improving = false;
         goto moves_loop;
     }
-    else if (excludedMove)
+    else if (excludedMove) //improvement may come from excluded move
     {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
         Eval::NNUE::hint_common_parent_position(pos);
@@ -726,9 +729,11 @@ namespace {
     else if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
-        ss->staticEval = eval = ttEval;
-        if (eval == VALUE_NONE)
-            ss->staticEval = eval = evaluate(pos);
+        ss->staticEval = ttEval;
+        ss->captureImprovement = ttCaptureImprovement;
+
+        if (ttEval == VALUE_NONE)
+            ss->staticEval = evaluate(pos);
         else if (PvNode)
             Eval::NNUE::hint_common_parent_position(pos);
 
@@ -736,6 +741,8 @@ namespace {
         if (    ttValue != VALUE_NONE
             && (ttBound & (ttValue > eval ? BOUND_LOWER : BOUND_UPPER)))
             eval = ttValue;
+
+        eval = ss->staticEval + 0*ss->captureImprovement;
     }
     else
     {
@@ -1429,7 +1436,7 @@ moves_loop: // When in check, search starts here
     Move ttMove, move, bestMove;
     Depth ttDepth, ttDepthNew;
     Bound ttBound;
-    Value bestValue, value, ttValue, ttEval, futilityValue, futilityBase;
+    Value bestValue, value, ttValue, ttEval, ttCaptureImprovement, futilityValue, futilityBase;
     bool pvHit, givesCheck, capture;
     int moveCount;
 
@@ -1453,6 +1460,11 @@ moves_loop: // When in check, search starts here
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
+    if((ss-1)->currentMove == MOVE_NULL)
+    	ss->captureImprovement = Value(0);
+
+    ss->captureImprovement = Value(0);
+
     // Decide whether or not to include checks: this fixes also the type of
     // TT entry depth that we are going to use. Note that in qsearch we use
     // only two types of depth in TT: DEPTH_QS_CHECKS or DEPTH_QS_NO_CHECKS.
@@ -1469,6 +1481,7 @@ moves_loop: // When in check, search starts here
     ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
     pvHit = ss->ttHit ? tte.is_pv() : false;
+    ttCaptureImprovement = ss->ttHit ? tte.captureImprovement() : Value(0);
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
@@ -1485,13 +1498,22 @@ moves_loop: // When in check, search starts here
         if (ss->ttHit)
         {
             // Never assume anything about values stored in TT
-            if ((ss->staticEval = bestValue = ttEval) == VALUE_NONE)
+            if ((ss->staticEval = ttEval) == VALUE_NONE)
                 ss->staticEval = bestValue = evaluate(pos);
+            else
+            {
+            	ss->captureImprovement = std::max(ss->captureImprovement, ttCaptureImprovement);
+            	bestValue = ss->staticEval + 0*ss->captureImprovement;
+            }
 
             // ttValue can be used as a better position evaluation (~13 Elo)
             if (    ttValue != VALUE_NONE
                 && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
                 bestValue = ttValue;
+        }
+        else if(ss->goodStaticEval)
+        {
+        	bestValue = ss->staticEval + 0*ss->captureImprovement;
         }
         else
             // In case of null move search use previous static eval with a different sign
@@ -1614,6 +1636,9 @@ moves_loop: // When in check, search starts here
         {
             bestValue = value;
 
+            if(!ss->inCheck && value > ss->staticEval + ss->captureImprovement)
+            	ss->captureImprovement = value - ss->staticEval;
+
             if (value > alpha)
             {
                 bestMove = move;
@@ -1642,7 +1667,9 @@ moves_loop: // When in check, search starts here
     // Save gathered info in transposition table
     tte.save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
               bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
-              ttDepthNew, bestMove, ss->staticEval);
+              ttDepthNew, bestMove, ss->staticEval, 0*ss->captureImprovement);
+
+    assert(tte.captureImprovement()==0);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 

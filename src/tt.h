@@ -35,6 +35,20 @@ namespace Stockfish {
 /// value      16 bit
 /// eval value 16 bit
 
+
+const int captureGrain = MAX_CAPTURE / 31;
+
+struct ExtraInfo {
+
+	Value captureImprovement(int rank) const { return (Value) (captureGrain*((info & captureImprovementMask[rank]) >> 5*rank)); }
+
+private:
+	friend class TranspositionTable;
+	friend struct TTWrapper;
+
+	uint16_t info;
+};
+
 struct TTEntry {
 
   Move  move()  const { return (Move )move16; }
@@ -47,6 +61,7 @@ struct TTEntry {
 
 private:
   friend class TranspositionTable;
+  friend struct TTWrapper;
 
   uint16_t key16;
   uint8_t  depth8;
@@ -56,6 +71,26 @@ private:
   int16_t  eval16;
 };
 
+struct TTWrapper {
+
+	  Move  move()  const { return tte->move(); }
+	  Value value() const { return tte->value(); }
+	  Value eval()  const { return tte->eval(); }
+	  Depth depth() const { return tte->depth(); }
+	  bool is_pv()  const { return tte->is_pv(); }
+	  Bound bound() const { return tte->bound(); }
+	  Value captureImprovement() const { return extraInfo->captureImprovement(rank); }
+	  void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value captureImprovement = Value(0));
+
+
+private:
+	  friend class TranspositionTable;
+
+	TTEntry* tte;
+	ExtraInfo* extraInfo;
+	int rank;
+
+};
 
 /// A TranspositionTable is an array of Cluster, of size clusterCount. Each
 /// cluster consists of ClusterSize number of TTEntry. Each non-empty TTEntry
@@ -69,7 +104,7 @@ class TranspositionTable {
 
   struct Cluster {
     TTEntry entry[ClusterSize];
-    char padding[2]; // Pad to 32 bytes
+    ExtraInfo extra;
   };
 
   static_assert(sizeof(Cluster) == 32, "Unexpected Cluster size");
@@ -83,13 +118,13 @@ class TranspositionTable {
 public:
  ~TranspositionTable() { aligned_large_pages_free(table); }
   void new_search() { generation8 += GENERATION_DELTA; } // Lower bits are used for other things
-  TTEntry* probe(const Key key, bool& found) const;
+  void probe(TTWrapper& ttw, const Key key, bool& found) const;
   int hashfull() const;
   void resize(size_t mbSize);
   void clear();
 
-  TTEntry* first_entry(const Key key) const {
-    return &table[mul_hi64(key, clusterCount)].entry[0];
+  Cluster* first_entry(const Key key) const {
+    return &table[mul_hi64(key, clusterCount)];
   }
 
 private:

@@ -195,7 +195,9 @@ enum Value : int {
   RookValueMg   = 1276,  RookValueEg   = 1380,
   QueenValueMg  = 2538,  QueenValueEg  = 2682,
 
-  MidgameLimit  = 15258, EndgameLimit  = 3915
+  MidgameLimit  = 15258, EndgameLimit  = 3915,
+
+  MAX_CAPTURE = 620
 };
 
 enum PieceType {
@@ -229,6 +231,11 @@ enum : int {
 
   DEPTH_OFFSET = -7 // value used only for TT entry occupancy check
 };
+
+constexpr int captureImprovementMask[3] = {
+		0x1f , 0x1f << 5, 0x1f << 10
+};
+
 
 enum Square : int {
   SQ_A1, SQ_B1, SQ_C1, SQ_D1, SQ_E1, SQ_F1, SQ_G1, SQ_H1,

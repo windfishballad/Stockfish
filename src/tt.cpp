@@ -33,6 +33,18 @@ TranspositionTable TT; // Our global transposition table
 /// TTEntry::save() populates the TTEntry with a new node's data, possibly
 /// overwriting an old position. Update is not atomic and can be racy.
 
+void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value captureImprovement) {
+
+	//If new position or new best improvement, consume the input
+	if((uint16_t) k != tte->key16 || captureImprovement > extraInfo->captureImprovement(rank))
+	{
+		uint16_t quietImprov = std::min(captureImprovement,MAX_CAPTURE)/captureGrain; //grain
+		extraInfo->info = (extraInfo-> info & ~ captureImprovementMask[rank]) | (quietImprov << 5*rank);
+	}
+
+	tte->save(k, v, pv, b, d, m, ev);
+}
+
 void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) {
 
   // Preserve any existing move for the same position
@@ -40,7 +52,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       move16 = (uint16_t)m;
 
   // Overwrite less valuable entries (cheapest checks first)
-  if (   b == BOUND_EXACT
+  if ( b == BOUND_EXACT
       || (uint16_t)k != key16
       || d - DEPTH_OFFSET + 2 * pv > depth8 - 4)
   {
@@ -52,7 +64,9 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       genBound8 = (uint8_t)(TT.generation8 | uint8_t(pv) << 2 | b);
       value16   = (int16_t)v;
       eval16    = (int16_t)ev;
+
   }
+
 }
 
 
@@ -117,9 +131,11 @@ void TranspositionTable::clear() {
 /// minus 8 times its relative age. TTEntry t1 is considered more valuable than
 /// TTEntry t2 if its replace value is greater than that of t2.
 
-TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
+void TranspositionTable::probe(TTWrapper& ttw, const Key key, bool& found) const {
 
-  TTEntry* const tte = first_entry(key);
+  Cluster* const cluster = first_entry(key);
+  TTEntry* const tte = &cluster->entry[0];
+
   const uint16_t key16 = (uint16_t)key;  // Use the low 16 bits as key inside the cluster
 
   for (int i = 0; i < ClusterSize; ++i)
@@ -127,11 +143,18 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
       {
           tte[i].genBound8 = uint8_t(generation8 | (tte[i].genBound8 & (GENERATION_DELTA - 1))); // Refresh
 
-          return found = (bool)tte[i].depth8, &tte[i];
+          ttw.tte = &tte[i];
+          ttw.extraInfo = &(cluster->extra);
+          ttw.rank = i;
+
+          found = (bool)tte[i].depth8;
+
+          return;
       }
 
   // Find an entry to be replaced according to the replacement strategy
   TTEntry* replace = tte;
+  int r = 0;
   for (int i = 1; i < ClusterSize; ++i)
       // Due to our packed storage format for generation and its cyclic
       // nature we add GENERATION_CYCLE (256 is the modulus, plus what
@@ -140,9 +163,18 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
       // generation8 overflows into the next cycle.
       if (  replace->depth8 - ((GENERATION_CYCLE + generation8 - replace->genBound8) & GENERATION_MASK)
           >   tte[i].depth8 - ((GENERATION_CYCLE + generation8 -   tte[i].genBound8) & GENERATION_MASK))
+      {
           replace = &tte[i];
+          r = i;
+      }
 
-  return found = false, replace;
+  ttw.tte = replace;
+  ttw.extraInfo = &(cluster->extra);
+  ttw.rank = r;
+
+  found = false;
+
+  return;
 }
 
 

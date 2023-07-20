@@ -540,7 +540,7 @@ namespace {
     StateInfo st;
     ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
 
-    TTEntry* tte;
+    TTWrapper tte;
     Key posKey;
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth, ttDepth;
@@ -603,15 +603,15 @@ namespace {
     // Step 4. Transposition table lookup.
     excludedMove = ss->excludedMove;
     posKey = pos.key();
-    tte = TT.probe(posKey, ss->ttHit);
-    ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
+    TT.probe(tte, posKey, ss->ttHit);
+    ttValue = ss->ttHit ? value_from_tt(tte.value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
-            : ss->ttHit    ? tte->move() : MOVE_NONE;
+            : ss->ttHit    ? tte.move() : MOVE_NONE;
     ttCapture = ttMove && pos.capture_stage(ttMove);
-    ttBound = ss->ttHit ? tte->bound() : BOUND_NONE;
-    ttDepth = ss->ttHit ? tte->depth() : DEPTH_NONE;
-    ttEval = ss->ttHit ? tte->eval() : VALUE_NONE;
-    pvHit = ss->ttHit ? tte->is_pv() : false;
+    ttBound = ss->ttHit ? tte.bound() : BOUND_NONE;
+    ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
+    ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
+    pvHit = ss->ttHit ? tte.is_pv() : false;
 
 
 
@@ -689,7 +689,7 @@ namespace {
                 if (    b == BOUND_EXACT
                     || (b == BOUND_LOWER ? value >= beta : value <= alpha))
                 {
-                    tte->save(posKey, value_to_tt(value, ss->ply), ss->ttPv, b,
+                    tte.save(posKey, value_to_tt(value, ss->ply), ss->ttPv, b,
                               std::min(MAX_PLY - 1, depth + 6),
                               MOVE_NONE, VALUE_NONE);
 
@@ -741,7 +741,7 @@ namespace {
     {
         ss->staticEval = eval = evaluate(pos);
         // Save static evaluation into the transposition table
-        tte->save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
+        tte.save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
 
     // Use static evaluation difference to improve quiet move ordering (~4 Elo)
@@ -888,7 +888,7 @@ namespace {
                 if (value >= probCutBeta)
                 {
                     // Save ProbCut data into transposition table
-                    tte->save(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER, depth - 3, move, ss->staticEval);
+                    tte.save(posKey, value_to_tt(value, ss->ply), ss->ttPv, BOUND_LOWER, depth - 3, move, ss->staticEval);
                     return value;
                 }
             }
@@ -1396,7 +1396,7 @@ moves_loop: // When in check, search starts here
 
     // Write gathered information in transposition table
     if (!excludedMove && !(rootNode && thisThread->pvIdx))
-        tte->save(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
+        tte.save(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
                   bestValue >= beta ? BOUND_LOWER :
                   PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
                   depth, bestMove, ss->staticEval);
@@ -1424,7 +1424,7 @@ moves_loop: // When in check, search starts here
     StateInfo st;
     ASSERT_ALIGNED(&st, Eval::NNUE::CacheLineSize);
 
-    TTEntry* tte;
+    TTWrapper tte;
     Key posKey;
     Move ttMove, move, bestMove;
     Depth ttDepth, ttDepthNew;
@@ -1461,14 +1461,14 @@ moves_loop: // When in check, search starts here
 
     // Step 3. Transposition table lookup
     posKey = pos.key();
-    tte = TT.probe(posKey, ss->ttHit);
-    ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
-    ttMove = ss->ttHit ? tte->move() : MOVE_NONE;
-    pvHit = ss->ttHit && tte->is_pv();
-    ttBound = ss->ttHit ? tte->bound() : BOUND_NONE;
-    ttDepth = ss->ttHit ? tte->depth() : DEPTH_NONE;
-    ttEval = ss->ttHit ? tte->eval() : VALUE_NONE;
-    pvHit = ss->ttHit ? tte->is_pv() : false;
+    TT.probe(tte, posKey, ss->ttHit);
+    ttValue = ss->ttHit ? value_from_tt(tte.value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
+    ttMove = ss->ttHit ? tte.move() : MOVE_NONE;
+    pvHit = ss->ttHit && tte.is_pv();
+    ttBound = ss->ttHit ? tte.bound() : BOUND_NONE;
+    ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
+    ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
+    pvHit = ss->ttHit ? tte.is_pv() : false;
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
@@ -1503,7 +1503,7 @@ moves_loop: // When in check, search starts here
         {
             // Save gathered info in transposition table
             if (!ss->ttHit)
-                tte->save(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
+                tte.save(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
                           DEPTH_NONE, MOVE_NONE, ss->staticEval);
 
             return bestValue;
@@ -1640,7 +1640,7 @@ moves_loop: // When in check, search starts here
     }
 
     // Save gathered info in transposition table
-    tte->save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
+    tte.save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
               bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
               ttDepthNew, bestMove, ss->staticEval);
 
@@ -1942,11 +1942,13 @@ bool RootMove::extract_ponder_from_tt(Position& pos) {
         return false;
 
     pos.do_move(pv[0], st);
-    TTEntry* tte = TT.probe(pos.key(), ttHit);
+
+    TTWrapper tte;
+    TT.probe(tte, pos.key(), ttHit);
 
     if (ttHit)
     {
-        Move m = tte->move(); // Local copy to be SMP safe
+        Move m = tte.move(); // Local copy to be SMP safe
         if (MoveList<LEGAL>(pos).contains(m))
             pv.push_back(m);
     }

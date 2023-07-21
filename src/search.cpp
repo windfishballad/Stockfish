@@ -281,7 +281,10 @@ void Thread::search() {
   {
       (ss-i)->continuationHistory = &this->continuationHistory[0][0][NO_PIECE][0]; // Use as a sentinel
       (ss-i)->staticEval = VALUE_NONE;
+      (ss-i)->captureImprovement = Value(0);
   }
+  ss->captureImprovement = Value(0);
+  ss->goodStaticEval = false;
 
   for (int i = 0; i <= MAX_PLY + 2; ++i)
       (ss+i)->ply = i;
@@ -560,6 +563,7 @@ namespace {
     bestValue          = -VALUE_INFINITE;
     maxValue           = VALUE_INFINITE;
 
+
     // Check for the available remaining time
     if (thisThread == Threads.main())
         static_cast<MainThread*>(thisThread)->check_time();
@@ -614,7 +618,7 @@ namespace {
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
     pvHit = ss->ttHit ? tte.is_pv() : false;
     ttCaptureImprovement = ss->ttHit ? ttEval == VALUE_NONE ? tte.captureImprovement() : Value(0) : Value(0);
-    ss->goodStaticEval = false;
+
 
 
 
@@ -720,6 +724,10 @@ namespace {
         improving = false;
         goto moves_loop;
     }
+    else if(!excludedMove && ss->goodStaticEval)
+    {
+    	eval = ss->staticEval;
+    }
     else if (excludedMove) //improvement may come from excluded move
     {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
@@ -737,16 +745,23 @@ namespace {
         else if (PvNode)
             Eval::NNUE::hint_common_parent_position(pos);
 
+        ss->goodStaticEval = false;
+        assert(ss->staticEval != VALUE_NONE);
+
+        eval = ss->staticEval + ss->captureImprovement;
+
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
             && (ttBound & (ttValue > eval ? BOUND_LOWER : BOUND_UPPER)))
             eval = ttValue;
 
-        eval = ss->staticEval + 0*ss->captureImprovement;
     }
     else
     {
         ss->staticEval = eval = evaluate(pos);
+        ss->goodStaticEval = true;
+        assert(ss->staticEval != VALUE_NONE);
+
         // Save static evaluation into the transposition table
         tte.save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
@@ -807,6 +822,9 @@ namespace {
         ss->continuationHistory = &thisThread->continuationHistory[0][0][NO_PIECE][0];
 
         pos.do_null_move(st);
+
+        (ss+1)->goodStaticEval = false;
+        (ss+1)->captureImprovement= Value(0);
 
         Value nullValue = -search<NonPV>(pos, ss+1, -beta, -beta+1, depth-R, !cutNode);
 
@@ -884,11 +902,19 @@ namespace {
                 pos.do_move(move, st);
 
                 // Perform a preliminary qsearch to verify that the move holds
+                (ss+1)->goodStaticEval = false;
+                (ss+1)->captureImprovement= Value(0);
                 value = -qsearch<NonPV>(pos, ss+1, -probCutBeta, -probCutBeta+1);
 
                 // If the qsearch held, perform the regular search
                 if (value >= probCutBeta)
+                {
+
+                	(ss+1)->goodStaticEval = false;
+                	(ss+1)->captureImprovement= Value(0);
+
                     value = -search<NonPV>(pos, ss+1, -probCutBeta, -probCutBeta+1, depth - 4, !cutNode);
+                }
 
                 pos.undo_move(move);
 
@@ -1212,6 +1238,9 @@ moves_loop: // When in check, search starts here
           // beyond the first move depth. This may lead to hidden double extensions.
           Depth d = std::clamp(newDepth - r, 1, newDepth + 1);
 
+          (ss+1)->goodStaticEval = false;
+          (ss+1)->captureImprovement= Value(0);
+
           value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, d, true);
 
           // Do a full-depth search when reduced LMR search fails high
@@ -1228,7 +1257,11 @@ moves_loop: // When in check, search starts here
               newDepth += doDeeperSearch - doShallowerSearch + doEvenDeeperSearch;
 
               if (newDepth > d)
+              {
+            	  (ss+1)->goodStaticEval = false;
+            	  (ss+1)->captureImprovement= Value(0);
                   value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth, !cutNode);
+              }
 
               int bonus = value <= alpha ? -stat_bonus(newDepth)
                         : value >= beta  ?  stat_bonus(newDepth)
@@ -1245,6 +1278,9 @@ moves_loop: // When in check, search starts here
           if (!ttMove && cutNode)
               r += 2;
 
+          (ss+1)->goodStaticEval = false;
+          (ss+1)->captureImprovement= Value(0);
+
           value = -search<NonPV>(pos, ss+1, -(alpha+1), -alpha, newDepth - (r > 3), !cutNode);
       }
 
@@ -1255,6 +1291,9 @@ moves_loop: // When in check, search starts here
       {
           (ss+1)->pv = pv;
           (ss+1)->pv[0] = MOVE_NONE;
+
+          (ss+1)->goodStaticEval = false;
+          (ss+1)->captureImprovement= Value(0);
 
           value = -search<PV>(pos, ss+1, -beta, -alpha, newDepth, false);
       }
@@ -1460,11 +1499,6 @@ moves_loop: // When in check, search starts here
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
-    if((ss-1)->currentMove == MOVE_NULL)
-    	ss->captureImprovement = Value(0);
-
-    ss->captureImprovement = Value(0);
-
     // Decide whether or not to include checks: this fixes also the type of
     // TT entry depth that we are going to use. Note that in qsearch we use
     // only two types of depth in TT: DEPTH_QS_CHECKS or DEPTH_QS_NO_CHECKS.
@@ -1495,25 +1529,32 @@ moves_loop: // When in check, search starts here
         bestValue = futilityBase = -VALUE_INFINITE;
     else
     {
-        if (ss->ttHit)
+    	 if(ss->goodStaticEval)
+    	 {
+
+    		 bestValue = ss->staticEval + ss->captureImprovement;
+    		 assert(ss->staticEval == evaluate(pos));
+
+
+    		 if (ss->ttHit && ttValue != VALUE_NONE
+    		                 && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
+    		                 bestValue = ttValue;
+    	 }
+    	 else if (ss->ttHit)
         {
             // Never assume anything about values stored in TT
             if ((ss->staticEval = ttEval) == VALUE_NONE)
                 ss->staticEval = bestValue = evaluate(pos);
             else
             {
-            	ss->captureImprovement = std::max(ss->captureImprovement, ttCaptureImprovement);
-            	bestValue = ss->staticEval + 0*ss->captureImprovement;
+            	ss->captureImprovement = ttCaptureImprovement;
+            	bestValue = ss->staticEval + ss->captureImprovement;
             }
 
             // ttValue can be used as a better position evaluation (~13 Elo)
             if (    ttValue != VALUE_NONE
                 && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
                 bestValue = ttValue;
-        }
-        else if(ss->goodStaticEval)
-        {
-        	bestValue = ss->staticEval + 0*ss->captureImprovement;
         }
         else
             // In case of null move search use previous static eval with a different sign
@@ -1625,6 +1666,10 @@ moves_loop: // When in check, search starts here
         quietCheckEvasions += !capture && ss->inCheck;
 
         // Step 7. Make and search the move
+
+        (ss+1)->goodStaticEval = false;
+        (ss+1)->captureImprovement= Value(0);
+
         pos.do_move(move, st, givesCheck);
         value = -qsearch<nodeType>(pos, ss+1, -beta, -alpha, depth - 1);
         pos.undo_move(move);
@@ -1637,7 +1682,7 @@ moves_loop: // When in check, search starts here
             bestValue = value;
 
             if(!ss->inCheck && value > ss->staticEval + ss->captureImprovement)
-            	ss->captureImprovement = value - ss->staticEval;
+            	ss->captureImprovement = 0*(value - ss->staticEval);
 
             if (value > alpha)
             {
@@ -1667,7 +1712,7 @@ moves_loop: // When in check, search starts here
     // Save gathered info in transposition table
     tte.save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
               bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
-              ttDepthNew, bestMove, ss->staticEval, 0*ss->captureImprovement);
+              ttDepthNew, bestMove, ss->staticEval, ss->captureImprovement);
 
     assert(tte.captureImprovement()==0);
 

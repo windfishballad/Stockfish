@@ -35,8 +35,9 @@ TranspositionTable TT; // Our global transposition table
 
 void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value captureImprovement) {
 
-	//If new position or new best improvement, consume the input
-	if((uint16_t) k != tte->key16 || captureImprovement > extraInfo->captureImprovement(rank))
+	//If new position, new generation or new best improvement, override the input.
+
+	if((uint16_t) k != tte->key16 || captureImprovement > extraInfo->captureImprovement(rank) || (tte->genBound8 && TT.GENERATION_MASK) != TT.generation8)
 	{
 		uint16_t quietImprov = std::min(captureImprovement,MAX_CAPTURE)/captureGrain; //grain
 		extraInfo->info = (extraInfo-> info & ~ captureImprovementMask[rank]) | (quietImprov << 5*rank);

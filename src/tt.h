@@ -129,6 +129,7 @@ public:
 
 private:
   friend struct TTEntry;
+  friend class TTWrapper;
 
   size_t clusterCount;
   Cluster* table;

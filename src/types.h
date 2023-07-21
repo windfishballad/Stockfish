@@ -197,7 +197,7 @@ enum Value : int {
 
   MidgameLimit  = 15258, EndgameLimit  = 3915,
 
-  MAX_CAPTURE = 620
+  MAX_CAPTURE = 930
 };
 
 enum PieceType {

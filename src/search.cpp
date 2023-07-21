@@ -548,7 +548,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth, ttDepth;
     Bound ttBound;
-    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta, ttCaptureImprovement;
+    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta;
     bool givesCheck, improving, priorCapture, singularQuietLMR;
     bool capture, moveCountPruning, ttCapture, pvHit;
     Piece movedPiece;
@@ -603,7 +603,6 @@ namespace {
     ss->doubleExtensions = (ss-1)->doubleExtensions;
     Square prevSq        = is_ok((ss-1)->currentMove) ? to_sq((ss-1)->currentMove) : SQ_NONE;
     ss->statScore        = 0;
-    ss->captureImprovement = Value(0);
 
     // Step 4. Transposition table lookup.
     excludedMove = ss->excludedMove;
@@ -617,9 +616,6 @@ namespace {
     ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
     pvHit = ss->ttHit ? tte.is_pv() : false;
-    ttCaptureImprovement = ss->ttHit ? ttEval == VALUE_NONE ? tte.captureImprovement() : Value(0) : Value(0);
-
-
 
 
     // At this point, if excluded, skip straight to step 6, static eval. However,
@@ -726,7 +722,7 @@ namespace {
     }
     else if(!excludedMove && ss->goodStaticEval)
     {
-    	eval = ss->staticEval;
+    	eval = ss->staticEval + ss->captureImprovement;
     }
     else if (excludedMove) //improvement may come from excluded move
     {
@@ -737,18 +733,13 @@ namespace {
     else if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
-        ss->staticEval = ttEval;
-        ss->captureImprovement = ttCaptureImprovement;
 
-        if (ttEval == VALUE_NONE)
-            ss->staticEval = evaluate(pos);
+        if ((ss->staticEval=eval=ttEval) == VALUE_NONE)
+            ss->staticEval = eval = evaluate(pos);
         else if (PvNode)
             Eval::NNUE::hint_common_parent_position(pos);
 
-        ss->goodStaticEval = false;
-        assert(ss->staticEval != VALUE_NONE);
-
-        eval = ss->staticEval + ss->captureImprovement;
+        ss->goodStaticEval = true;
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -1532,8 +1523,10 @@ moves_loop: // When in check, search starts here
     	 if(ss->goodStaticEval)
     	 {
 
-    		 bestValue = ss->staticEval + ss->captureImprovement;
-    		 assert(ss->staticEval == evaluate(pos));
+    		 if(ss->ttHit && ttEval!=VALUE_NONE)
+    			 ss->captureImprovement=std::max(ss->captureImprovement, ttCaptureImprovement);
+
+    		 bestValue=ss->staticEval + ss->captureImprovement;
 
 
     		 if (ss->ttHit && ttValue != VALUE_NONE
@@ -1681,11 +1674,13 @@ moves_loop: // When in check, search starts here
         {
             bestValue = value;
 
-            if(!ss->inCheck && value > ss->staticEval + ss->captureImprovement)
-            	ss->captureImprovement = 0*(value - ss->staticEval);
 
             if (value > alpha)
             {
+
+            	if(!ss->inCheck && value > ss->staticEval + ss->captureImprovement)
+            	            	ss->captureImprovement = value - ss->staticEval;
+
                 bestMove = move;
 
                 if (PvNode) // Update pv even in fail-high case
@@ -1714,7 +1709,7 @@ moves_loop: // When in check, search starts here
               bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
               ttDepthNew, bestMove, ss->staticEval, ss->captureImprovement);
 
-    assert(tte.captureImprovement()==0);
+    assert(tte.captureImprovement() <= MAX_CAPTURE && tte.captureImprovement() >= 0);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 

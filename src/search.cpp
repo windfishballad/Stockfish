@@ -1515,6 +1515,11 @@ moves_loop: // When in check, search starts here
         && (ttBound & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
         return ttValue;
 
+    if (  !PvNode
+            && ttEval != VALUE_NONE // Only in case of TT access race or if !ttHit
+            && ttEval + ttCaptureImprovement >= beta)
+            return ttEval + ttCaptureImprovement;
+
     // Step 4. Static evaluation of the position
     if (ss->inCheck)
         bestValue = futilityBase = -VALUE_INFINITE;
@@ -1522,9 +1527,6 @@ moves_loop: // When in check, search starts here
     {
     	 if(ss->goodStaticEval)
     	 {
-
-    		 if(ss->ttHit && ttEval!=VALUE_NONE)
-    			 ss->captureImprovement=std::max(ss->captureImprovement, ttCaptureImprovement);
 
     		 bestValue=ss->staticEval + ss->captureImprovement;
 
@@ -1536,13 +1538,8 @@ moves_loop: // When in check, search starts here
     	 else if (ss->ttHit)
         {
             // Never assume anything about values stored in TT
-            if ((ss->staticEval = ttEval) == VALUE_NONE)
+            if ((ss->staticEval = bestValue = ttEval) == VALUE_NONE)
                 ss->staticEval = bestValue = evaluate(pos);
-            else
-            {
-            	ss->captureImprovement = ttCaptureImprovement;
-            	bestValue = ss->staticEval + ss->captureImprovement;
-            }
 
             // ttValue can be used as a better position evaluation (~13 Elo)
             if (    ttValue != VALUE_NONE

@@ -281,6 +281,7 @@ void Thread::search() {
   {
       (ss-i)->continuationHistory = &this->continuationHistory[0][0][NO_PIECE][0]; // Use as a sentinel
       (ss-i)->staticEval = VALUE_NONE;
+      (ss-i)->usedStaticEval = VALUE_NONE;
   }
 
   for (int i = 0; i <= MAX_PLY + 2; ++i)
@@ -545,7 +546,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth, ttDepth;
     Bound ttBound;
-    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta;
+    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta, ttImprovement, usedStaticEval;
     bool givesCheck, improving, priorCapture, singularQuietLMR;
     bool capture, moveCountPruning, ttCapture, pvHit;
     Piece movedPiece;
@@ -612,8 +613,7 @@ namespace {
     ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
     pvHit = ss->ttHit ? tte.is_pv() : false;
-
-
+    ttImprovement = ss->ttHit ? tte.improvement() : Value(0);
 
     // At this point, if excluded, skip straight to step 6, static eval. However,
     // to save indentation, we list the condition in all code between here and there.
@@ -713,7 +713,7 @@ namespace {
     if (ss->inCheck)
     {
         // Skip early pruning when in check
-        ss->staticEval = eval = VALUE_NONE;
+        ss->staticEval = eval = usedStaticEval = ss->usedStaticEval = VALUE_NONE;
         improving = false;
         goto moves_loop;
     }
@@ -721,16 +721,20 @@ namespace {
     {
         // Providing the hint that this node's accumulator will be used often brings significant Elo gain (13 Elo)
         Eval::NNUE::hint_common_parent_position(pos);
-        eval = ss->staticEval;
+        eval = usedStaticEval = ss->staticEval; //The quiet improvement may be due to the excluded move
     }
     else if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
         ss->staticEval = eval = ttEval;
         if (eval == VALUE_NONE)
-            ss->staticEval = eval = evaluate(pos);
-        else if (PvNode)
-            Eval::NNUE::hint_common_parent_position(pos);
+            ss->staticEval = eval = ss->usedStaticEval = usedStaticEval = evaluate(pos);
+        else
+        {
+        	usedStaticEval = ss->usedStaticEval = ss->staticEval + ttImprovement; //use cached qsearch value as better static eval
+        	if (PvNode)
+        		Eval::NNUE::hint_common_parent_position(pos);
+        }
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -739,7 +743,7 @@ namespace {
     }
     else
     {
-        ss->staticEval = eval = evaluate(pos);
+        ss->staticEval = eval = usedStaticEval = ss->usedStaticEval = evaluate(pos);
         // Save static evaluation into the transposition table
         tte.save(posKey, VALUE_NONE, ss->ttPv, BOUND_NONE, DEPTH_NONE, MOVE_NONE, eval);
     }
@@ -747,7 +751,7 @@ namespace {
     // Use static evaluation difference to improve quiet move ordering (~4 Elo)
     if (is_ok((ss-1)->currentMove) && !(ss-1)->inCheck && !priorCapture)
     {
-        int bonus = std::clamp(-18 * int((ss-1)->staticEval + ss->staticEval), -1817, 1817);
+        int bonus = std::clamp(-18 * int((ss-1)->usedStaticEval + ss->usedStaticEval), -1817, 1817);
         thisThread->mainHistory[~us][from_to((ss-1)->currentMove)] << bonus;
     }
 
@@ -756,8 +760,8 @@ namespace {
     // check at our previous move we look at static evaluaion at move prior to it
     // and if we were in check at move prior to it flag is set to true) and is
     // false otherwise. The improving flag is used in various pruning heuristics.
-    improving =   (ss-2)->staticEval != VALUE_NONE ? ss->staticEval > (ss-2)->staticEval
-                : (ss-4)->staticEval != VALUE_NONE ? ss->staticEval > (ss-4)->staticEval
+    improving =   (ss-2)->usedStaticEval != VALUE_NONE ? usedStaticEval > (ss-2)->usedStaticEval
+                : (ss-4)->usedStaticEval != VALUE_NONE ? usedStaticEval > (ss-4)->usedStaticEval
                 : true;
 
     // Step 7. Razoring (~1 Elo).
@@ -784,8 +788,8 @@ namespace {
         && (ss-1)->currentMove != MOVE_NULL
         && (ss-1)->statScore < 17329
         &&  eval >= beta
-        &&  eval >= ss->staticEval
-        &&  ss->staticEval >= beta - 21 * depth + 258
+        &&  eval >= usedStaticEval
+        &&  usedStaticEval >= beta - 21 * depth + 258
         && !excludedMove
         &&  pos.non_pawn_material(us)
         &&  ss->ply >= thisThread->nmpMinPly
@@ -1038,7 +1042,7 @@ moves_loop: // When in check, search starts here
               // Futility pruning: parent node (~13 Elo)
               if (   !ss->inCheck
                   && lmrDepth < 12
-                  && ss->staticEval + 112 + 138 * lmrDepth <= alpha)
+                  && usedStaticEval + 112 + 138 * lmrDepth <= alpha)
                   continue;
 
               lmrDepth = std::max(lmrDepth, 0);

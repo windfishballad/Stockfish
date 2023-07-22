@@ -36,11 +36,11 @@ namespace Stockfish {
 /// eval value 16 bit
 
 
-const int captureGrain = MAX_CAPTURE / 31;
+const int improvementGrain = MAX_IMPROVEMENT / 31;
 
 struct ExtraInfo {
 
-	Value captureImprovement(int rank) const { return (Value) (captureGrain*((info & captureImprovementMask[rank]) >> 5*rank)); }
+	Value improvement(int rank) const { return (Value) (improvementGrain*((info & improvementMask[rank]) >> 5*rank)); }
 
 private:
 	friend class TranspositionTable;
@@ -57,7 +57,7 @@ struct TTEntry {
   Depth depth() const { return (Depth)depth8 + DEPTH_OFFSET; }
   bool is_pv()  const { return (bool)(genBound8 & 0x4); }
   Bound bound() const { return (Bound)(genBound8 & 0x3); }
-  void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev);
+  void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, bool newPosition);
 
 private:
   friend class TranspositionTable;
@@ -79,8 +79,8 @@ struct TTWrapper {
 	  Depth depth() const { return tte->depth(); }
 	  bool is_pv()  const { return tte->is_pv(); }
 	  Bound bound() const { return tte->bound(); }
-	  Value captureImprovement() const { return extraInfo->captureImprovement(rank); }
-	  void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value captureImprovement = Value(0));
+	  Value improvement() const { return extraInfo->improvement(rank); }
+	  void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value improvement = Value(0));
 
 
 private:

@@ -33,27 +33,37 @@ TranspositionTable TT; // Our global transposition table
 /// TTEntry::save() populates the TTEntry with a new node's data, possibly
 /// overwriting an old position. Update is not atomic and can be racy.
 
-void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value captureImprovement) {
+void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value improvement) {
 
-	//If new position or new best improvement, consume the input
-	if((uint16_t) k != tte->key16 || captureImprovement > extraInfo->captureImprovement(rank))
+	//New position
+
+	bool newPosition= (uint16_t) k != tte->key16;
+
+	assert(0<=improvement && improvement <= 31);
+
+
+	if(newPosition) //save improvement
 	{
-		uint16_t quietImprov = std::min(captureImprovement,MAX_CAPTURE)/captureGrain; //grain
-		extraInfo->info = (extraInfo-> info & ~ captureImprovementMask[rank]) | (quietImprov << 5*rank);
+			extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | (improvement << 5*rank);
+	}
+	else //save improvement if improves on previous result
+	{
+		if(improvement > 0 && improvement > (extraInfo->info & improvementMask[rank] >> 5)) //first redundant check saves compute since most tt saves pass 0
+			extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | (improvement << 5*rank);
 	}
 
-	tte->save(k, v, pv, b, d, m, ev);
+	tte->save(k, v, pv, b, d, m, ev, newPosition);
 }
 
-void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) {
+void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, bool newPosition) {
 
   // Preserve any existing move for the same position
-  if (m || (uint16_t)k != key16)
+  if (m || newPosition)
       move16 = (uint16_t)m;
 
   // Overwrite less valuable entries (cheapest checks first)
   if ( b == BOUND_EXACT
-      || (uint16_t)k != key16
+      || newPosition
       || d - DEPTH_OFFSET + 2 * pv > depth8 - 4)
   {
       assert(d > DEPTH_OFFSET);

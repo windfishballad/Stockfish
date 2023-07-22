@@ -1638,7 +1638,7 @@ moves_loop: // When in check, search starts here
         //Step 8. Update improvement
 
         if(!ss->inCheck && ((ss+1)->bound & BOUND_UPPER) && value > ss->staticEval)
-        	improvement = std::max(improvement - ss->staticEval, Value(0));
+        	improvement = std::max(value - ss->staticEval, improvement);
 
         //If value is a lower bound or a none bound then we are necessarily a lower bound
         ss->bound &= ((ss+1)->bound == BOUND_UPPER ? BOUND_LOWER : (ss+1)->bound == BOUND_NONE ? BOUND_LOWER : BOUND_EXACT);

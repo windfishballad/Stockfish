@@ -116,7 +116,7 @@ namespace {
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
 
   template <NodeType nodeType>
-  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
+  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0, bool unclean = true);
 
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply, int r50c);
@@ -1415,7 +1415,7 @@ moves_loop: // When in check, search starts here
   // function with zero depth, or recursively with further decreasing depth per call.
   // (~155 Elo)
   template <NodeType nodeType>
-  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
+  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool unclean) {
 
     static_assert(nodeType != Root);
     constexpr bool PvNode = nodeType == PV;
@@ -1475,7 +1475,7 @@ moves_loop: // When in check, search starts here
     pvHit = ss->ttHit ? tte.is_pv() : false;
 
     // At non-PV nodes we check for an early TT cutoff
-    if (  !PvNode
+    if (  !PvNode && unclean
         && ttDepth >= ttDepthNew
         && ttValue != VALUE_NONE // Only in case of TT access race or if !ttHit
         && (ttBound & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
@@ -1486,7 +1486,7 @@ moves_loop: // When in check, search starts here
         bestValue = futilityBase = -VALUE_INFINITE;
     else
     {
-        if (ss->ttHit)
+        if (ss->ttHit && unclean)
         {
             // Never assume anything about values stored in TT
             if ((ss->staticEval = bestValue = ttEval) == VALUE_NONE)
@@ -1572,18 +1572,18 @@ moves_loop: // When in check, search starts here
                 &&  futilityBase > -VALUE_KNOWN_WIN
                 &&  type_of(move) != PROMOTION)
             {
-                if (moveCount > 2)
+                if (moveCount > 2 && unclean)
                     continue;
 
                 futilityValue = futilityBase + PieceValue[EG][pos.piece_on(to_sq(move))];
 
-                if (futilityValue <= alpha)
+                if (futilityValue <= alpha && unclean)
                 {
                     bestValue = std::max(bestValue, futilityValue);
                     continue;
                 }
 
-                if (futilityBase <= alpha && !pos.see_ge(move, VALUE_ZERO + 1))
+                if (futilityBase <= alpha && !pos.see_ge(move, VALUE_ZERO + 1) && unclean)
                 {
                     bestValue = std::max(bestValue, futilityBase);
                     continue;
@@ -1597,7 +1597,7 @@ moves_loop: // When in check, search starts here
             // We prune after the second quiet check evasion move, where being 'in check' is
             // implicitly checked through the counter, and being a 'quiet move' apart from
             // being a tt move is assumed after an increment because captures are pushed ahead.
-            if (quietCheckEvasions > 1) {
+            if (quietCheckEvasions > 1 && unclean) {
             	ss->bound &= BOUND_LOWER;
                 break;
             }
@@ -1605,7 +1605,7 @@ moves_loop: // When in check, search starts here
             // Continuation history based pruning (~3 Elo)
             if (   !capture
                 && (*contHist[0])[pos.moved_piece(move)][to_sq(move)] < 0
-                && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < 0)
+                && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < 0 && unclean)
             {
             	ss->bound &= BOUND_LOWER;
                 continue;
@@ -1679,6 +1679,13 @@ moves_loop: // When in check, search starts here
     }
 
     assert(improvement >= 0);
+
+    if(unclean)
+    {
+    	Value check=qsearch<NonPV>(pos,ss,ss->staticEval,VALUE_INFINITE,depth, false);
+    	assert(ss->staticEval <= check);
+    	//assert(ss->staticEval + improvement <= check);
+    }
     improvement = std::min(improvement,MAX_IMPROVEMENT)/improvementGrain;
 
     // Save gathered info in transposition table

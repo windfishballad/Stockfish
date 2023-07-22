@@ -1421,7 +1421,6 @@ moves_loop: // When in check, search starts here
     constexpr bool PvNode = nodeType == PV;
 
     assert(alpha >= -VALUE_INFINITE && alpha < beta && beta <= VALUE_INFINITE);
-    assert(PvNode || (alpha == beta - 1));
     assert(depth <= 0);
 
     Move pv[MAX_PLY+1];
@@ -1433,7 +1432,7 @@ moves_loop: // When in check, search starts here
     Move ttMove, move, bestMove;
     Depth ttDepth, ttDepthNew;
     Bound ttBound;
-    Value bestValue, value, ttValue, ttEval, futilityValue, futilityBase;
+    Value bestValue, value, ttValue, ttEval, futilityValue, futilityBase, improvement = Value(0);
     bool pvHit, givesCheck, capture;
     int moveCount;
 
@@ -1444,6 +1443,7 @@ moves_loop: // When in check, search starts here
         (ss+1)->pv = pv;
         ss->pv[0] = MOVE_NONE;
     }
+    ss->bound = BOUND_EXACT;
 
     Thread* thisThread = pos.this_thread();
     bestMove = MOVE_NONE;
@@ -1453,7 +1453,7 @@ moves_loop: // When in check, search starts here
     // Step 2. Check for an immediate draw or maximum ply reached
     if (   pos.is_draw(ss->ply)
         || ss->ply >= MAX_PLY)
-        return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_DRAW;
+        return ss->bound &= BOUND_NONE, (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos) : VALUE_DRAW;
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
@@ -1479,7 +1479,7 @@ moves_loop: // When in check, search starts here
         && ttDepth >= ttDepthNew
         && ttValue != VALUE_NONE // Only in case of TT access race or if !ttHit
         && (ttBound & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
-        return ttValue;
+        return ss->bound &= BOUND_NONE, ttValue;
 
     // Step 4. Static evaluation of the position
     if (ss->inCheck)
@@ -1495,12 +1495,20 @@ moves_loop: // When in check, search starts here
             // ttValue can be used as a better position evaluation (~13 Elo)
             if (    ttValue != VALUE_NONE
                 && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
+            {
                 bestValue = ttValue;
+                if(bestValue > ss->staticEval)
+                	ss->bound = BOUND_UPPER;
+                else
+                	ss->bound = BOUND_LOWER;
+            }
         }
         else
             // In case of null move search use previous static eval with a different sign
             ss->staticEval = bestValue = (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
                                                                           : -(ss-1)->staticEval;
+
+
 
         // Stand pat. Return immediately if static value is at least beta
         if (bestValue >= beta)
@@ -1510,13 +1518,14 @@ moves_loop: // When in check, search starts here
                 tte.save(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
                           DEPTH_NONE, MOVE_NONE, ss->staticEval);
 
-            return bestValue;
+            return ss->bound &= BOUND_LOWER, bestValue;
         }
 
-        if (PvNode && bestValue > alpha)
+        if (bestValue > alpha)
             alpha = bestValue;
 
         futilityBase = bestValue + 200;
+
     }
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
@@ -1554,6 +1563,10 @@ moves_loop: // When in check, search starts here
         if (bestValue > VALUE_TB_LOSS_IN_MAX_PLY)
         {
             // Futility pruning and moveCount pruning (~10 Elo)
+        	Bound saveBound = ss->bound;
+
+        	ss->bound &= BOUND_LOWER; //Pruning may occur
+
             if (   !givesCheck
                 &&  to_sq(move) != prevSq
                 &&  futilityBase > -VALUE_KNOWN_WIN
@@ -1575,19 +1588,28 @@ moves_loop: // When in check, search starts here
                     bestValue = std::max(bestValue, futilityBase);
                     continue;
                 }
+
+                //No pruning occured
+
+                ss->bound = saveBound;
             }
 
             // We prune after the second quiet check evasion move, where being 'in check' is
             // implicitly checked through the counter, and being a 'quiet move' apart from
             // being a tt move is assumed after an increment because captures are pushed ahead.
-            if (quietCheckEvasions > 1)
+            if (quietCheckEvasions > 1) {
+            	ss->bound &= BOUND_LOWER;
                 break;
+            }
 
             // Continuation history based pruning (~3 Elo)
             if (   !capture
                 && (*contHist[0])[pos.moved_piece(move)][to_sq(move)] < 0
                 && (*contHist[1])[pos.moved_piece(move)][to_sq(move)] < 0)
+            {
+            	ss->bound &= BOUND_LOWER;
                 continue;
+            }
 
             // Do not search moves with bad enough SEE values (~5 Elo)
             if (!pos.see_ge(move, Value(-95)))
@@ -1613,10 +1635,22 @@ moves_loop: // When in check, search starts here
 
         assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
-        // Step 8. Check for a new best move
+        //Step 8. Update improvement
+
+        if(!ss->inCheck && ((ss+1)->bound & BOUND_UPPER) && value > ss->staticEval)
+        	improvement = std::max(improvement - ss->staticEval, Value(0));
+
+        //If value is a lower bound or a none bound then we are necessarily a lower bound
+        ss->bound &= ((ss+1)->bound == BOUND_UPPER ? BOUND_LOWER : (ss+1)->bound == BOUND_NONE ? BOUND_LOWER : BOUND_EXACT);
+
+        // Step 9. Check for a new best move
         if (value > bestValue)
         {
             bestValue = value;
+
+            //If value is an uppper bound or a bound none then we are an upper bound.
+
+            ss->bound &= ((ss+1)->bound == BOUND_LOWER ? BOUND_UPPER : (ss+1)->bound == BOUND_NONE ? BOUND_UPPER : BOUND_EXACT);
 
             if (value > alpha)
             {
@@ -1625,15 +1659,16 @@ moves_loop: // When in check, search starts here
                 if (PvNode) // Update pv even in fail-high case
                     update_pv(ss->pv, move, (ss+1)->pv);
 
-                if (PvNode && value < beta) // Update alpha here!
+                if (value < beta) // Update alpha here!
                     alpha = value;
                 else
                     break; // Fail high
             }
         }
+
     }
 
-    // Step 9. Check for mate
+    // Step 10. Check for mate
     // All legal moves have been searched. A special case: if we're in check
     // and no legal moves were found, it is checkmate.
     if (ss->inCheck && bestValue == -VALUE_INFINITE)
@@ -1643,10 +1678,15 @@ moves_loop: // When in check, search starts here
         return mated_in(ss->ply); // Plies to mate from the root
     }
 
+    assert(improvement >= 0);
+    improvement = std::min(improvement,MAX_IMPROVEMENT)/improvementGrain;
+
     // Save gathered info in transposition table
     tte.save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
               bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
-              ttDepthNew, bestMove, ss->staticEval);
+              ttDepthNew, bestMove, ss->staticEval, improvement);
+
+    assert(tte.improvement() >= improvement);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 

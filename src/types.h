@@ -316,7 +316,8 @@ constexpr T operator+(T d1, int d2) { return T(int(d1) + d2); }    \
 constexpr T operator-(T d1, int d2) { return T(int(d1) - d2); }    \
 constexpr T operator-(T d) { return T(-int(d)); }                  \
 inline T& operator+=(T& d1, int d2) { return d1 = d1 + d2; }       \
-inline T& operator-=(T& d1, int d2) { return d1 = d1 - d2; }
+inline T& operator-=(T& d1, int d2) { return d1 = d1 - d2; }       \
+inline T& operator&=(T& d1, int d2) { return d1 = T((int) d1 & (int) d2); }
 
 #define ENABLE_INCR_OPERATORS_ON(T)                                \
 inline T& operator++(T& d) { return d = T(int(d) + 1); }           \
@@ -341,6 +342,7 @@ ENABLE_INCR_OPERATORS_ON(File)
 ENABLE_INCR_OPERATORS_ON(Rank)
 
 ENABLE_BASE_OPERATORS_ON(Score)
+ENABLE_BASE_OPERATORS_ON(Bound)
 
 #undef ENABLE_FULL_OPERATORS_ON
 #undef ENABLE_INCR_OPERATORS_ON

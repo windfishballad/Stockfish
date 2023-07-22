@@ -1507,6 +1507,8 @@ moves_loop: // When in check, search starts here
             // In case of null move search use previous static eval with a different sign
             ss->staticEval = bestValue = (ss-1)->currentMove != MOVE_NULL ? evaluate(pos)
                                                                           : -(ss-1)->staticEval;
+        if(!unclean)
+        	assert(bestValue == ss->staticEval);
 
 
 
@@ -1518,7 +1520,7 @@ moves_loop: // When in check, search starts here
                 tte.save(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
                           DEPTH_NONE, MOVE_NONE, ss->staticEval);
 
-            return ss->bound &= BOUND_LOWER, bestValue;
+            return ss->bound &= BOUND_LOWER, unclean ? bestValue : beta;
         }
 
         if (bestValue > alpha)
@@ -1527,6 +1529,9 @@ moves_loop: // When in check, search starts here
         futilityBase = bestValue + 200;
 
     }
+
+    if(!ss->inCheck && !unclean)
+    	assert(alpha>= ss->staticEval);
 
     const PieceToHistory* contHist[] = { (ss-1)->continuationHistory, (ss-2)->continuationHistory,
                                           nullptr                   , (ss-4)->continuationHistory,
@@ -1637,8 +1642,8 @@ moves_loop: // When in check, search starts here
 
         //Step 8. Update improvement
 
-        if(!ss->inCheck && ((ss+1)->bound & BOUND_UPPER) && value > ss->staticEval)
-        	improvement = std::max(improvement - ss->staticEval, Value(0));
+        if(PvNode && !ss->inCheck && ((ss+1)->bound & BOUND_UPPER) && value > ss->staticEval)
+        	improvement = std::max(value - ss->staticEval, Value(0));
 
         //If value is a lower bound or a none bound then we are necessarily a lower bound
         ss->bound &= ((ss+1)->bound == BOUND_UPPER ? BOUND_LOWER : (ss+1)->bound == BOUND_NONE ? BOUND_LOWER : BOUND_EXACT);
@@ -1680,10 +1685,14 @@ moves_loop: // When in check, search starts here
 
     assert(improvement >= 0);
 
-    if(unclean)
+    if(!ss->inCheck && unclean)
     {
-    	Value check=qsearch<NonPV>(pos,ss,ss->staticEval,VALUE_INFINITE,depth, false);
+    	Value check=qsearch<NonPV>(pos,ss,-VALUE_INFINITE,VALUE_INFINITE,-1, false);
     	assert(ss->staticEval <= check);
+    	Value check2=qsearch<NonPV>(pos,ss,ss->staticEval,VALUE_INFINITE,-1, false);
+    	std::cout << depth << " - " << ss->staticEval << " - " << check << " - " << check2 << "\n";
+    	assert(check == check2);
+    	//std::cout << ss->staticEval << " - " << improvement << " - " << check << "\n";
     	//assert(ss->staticEval + improvement <= check);
     }
     improvement = std::min(improvement,MAX_IMPROVEMENT)/improvementGrain;
@@ -1697,7 +1706,7 @@ moves_loop: // When in check, search starts here
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
-    return bestValue;
+    return unclean ? bestValue : std::min(beta,std::max(bestValue,alpha));
   }
 
 

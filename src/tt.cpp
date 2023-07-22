@@ -48,7 +48,7 @@ void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev
 	}
 	else //save improvement if improves on previous result
 	{
-		if(improvement > 0 && improvement > (extraInfo->info & improvementMask[rank]) >> 5) //first redundant check saves compute since most tt saves pass 0
+		if(improvement > 0 && improvement > ((extraInfo->info & improvementMask[rank]) >> 5 * rank)) //first redundant check saves compute since most tt saves pass 0
 			extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | (improvement << 5*rank);
 	}
 

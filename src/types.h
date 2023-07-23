@@ -197,7 +197,7 @@ enum Value : int {
 
   MidgameLimit  = 15258, EndgameLimit  = 3915,
 
-  MAX_CAPTURE = 620
+  MAX_IMPROVEMENT = 930
 };
 
 enum PieceType {
@@ -232,7 +232,7 @@ enum : int {
   DEPTH_OFFSET = -7 // value used only for TT entry occupancy check
 };
 
-constexpr int captureImprovementMask[3] = {
+constexpr int improvementMask[3] = {
 		0x1f , 0x1f << 5, 0x1f << 10
 };
 

@@ -33,14 +33,14 @@ TranspositionTable TT; // Our global transposition table
 /// TTEntry::save() populates the TTEntry with a new node's data, possibly
 /// overwriting an old position. Update is not atomic and can be racy.
 
-void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value captureImprovement) {
+void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Value improvement) {
 
 	//If new position, new generation or new best improvement, override the input.
 
-	if((uint16_t) k != tte->key16 || captureImprovement > extraInfo->captureImprovement(rank) || (tte->genBound8 && TT.GENERATION_MASK) != TT.generation8)
+	if((uint16_t) k != tte->key16 || improvement > -1+0*extraInfo->improvement(rank))
 	{
-		uint16_t quietImprov = std::min(captureImprovement,MAX_CAPTURE)/captureGrain; //grain
-		extraInfo->info = (extraInfo-> info & ~ captureImprovementMask[rank]) | (quietImprov << 5*rank);
+		uint16_t quietImprov = std::min(improvement,MAX_IMPROVEMENT)/improvementGrain; //grain
+		extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | (quietImprov << 5*rank);
 	}
 
 	tte->save(k, v, pv, b, d, m, ev);
@@ -67,6 +67,21 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       eval16    = (int16_t)ev;
 
   }
+
+}
+
+void TTWrapper::decrementImprovement(Key k, int n) {
+
+
+	assert(n > 0);
+
+	// Preserve any existing move for the same position
+	if ((uint16_t)k == tte->key16)
+	{
+	  int improvement  = (extraInfo-> info & improvementMask[rank]);
+	  improvement = std::max(0, improvement - n * improvementMask[rank]);
+	  extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | improvement;
+	}
 
 }
 

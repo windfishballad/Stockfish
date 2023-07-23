@@ -545,7 +545,7 @@ namespace {
     Move ttMove, move, excludedMove, bestMove;
     Depth extension, newDepth, ttDepth;
     Bound ttBound;
-    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta, ttImprovement;
+    Value bestValue, value, ttValue, eval, ttEval, maxValue, probCutBeta;
     bool givesCheck, improving, priorCapture, singularQuietLMR;
     bool capture, moveCountPruning, ttCapture, pvHit;
     Piece movedPiece;
@@ -608,7 +608,6 @@ namespace {
     ttMove =  rootNode ? thisThread->rootMoves[thisThread->pvIdx].pv[0]
             : ss->ttHit    ? tte.move() : MOVE_NONE;
     ttCapture = ttMove && pos.capture_stage(ttMove);
-    ttImprovement = ss->ttHit ? tte.captureImprovement() : Value(0);
     ttBound = ss->ttHit ? tte.bound() : BOUND_NONE;
     ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
@@ -727,17 +726,11 @@ namespace {
     else if (ss->ttHit)
     {
         // Never assume anything about values stored in TT
-        if ((ss->staticEval = ttEval) == VALUE_NONE)
+        ss->staticEval = eval = ttEval;
+        if (eval == VALUE_NONE)
             ss->staticEval = eval = evaluate(pos);
-        else
-        {
-        	eval = ss->staticEval + ttImprovement;
-
-        	if (PvNode)
-        		Eval::NNUE::hint_common_parent_position(pos);
-        }
-
-
+        else if (PvNode)
+            Eval::NNUE::hint_common_parent_position(pos);
 
         // ttValue can be used as a better position evaluation (~7 Elo)
         if (    ttValue != VALUE_NONE
@@ -1436,7 +1429,7 @@ moves_loop: // When in check, search starts here
     Move ttMove, move, bestMove;
     Depth ttDepth, ttDepthNew;
     Bound ttBound;
-    Value bestValue, value, ttValue, ttEval, futilityValue, futilityBase, ttImprovement, improvement = Value(0);
+    Value bestValue, value, ttValue, ttEval, futilityValue, futilityBase, improvement = Value(0);
     bool pvHit, givesCheck, capture;
     int moveCount;
 
@@ -1476,7 +1469,6 @@ moves_loop: // When in check, search starts here
     ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
     pvHit = ss->ttHit ? tte.is_pv() : false;
-    ttImprovement = ss->ttHit ? tte.captureImprovement() : Value(0);
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
@@ -1484,12 +1476,6 @@ moves_loop: // When in check, search starts here
         && ttValue != VALUE_NONE // Only in case of TT access race or if !ttHit
         && (ttBound & (ttValue >= beta ? BOUND_LOWER : BOUND_UPPER)))
         return ttValue;
-
-    //Cutoff if known improvement
-    if (  !PvNode
-            && ttEval != VALUE_NONE // Only in case of TT access race or if !ttHit
-            && ttEval + ttImprovement >= beta)
-            return ttEval + ttImprovement;
 
     // Step 4. Static evaluation of the position
     if (ss->inCheck)
@@ -1624,6 +1610,10 @@ moves_loop: // When in check, search starts here
         assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);
 
         // Step 8. Check for a new best move
+
+        if (PvNode && value - ss->staticEval > improvement)
+        	improvement = value - ss->staticEval;
+
         if (value > bestValue)
         {
             bestValue = value;
@@ -1631,9 +1621,6 @@ moves_loop: // When in check, search starts here
             if (value > alpha)
             {
                 bestMove = move;
-
-                if(value > ss->staticEval)
-                	improvement = value - ss->staticEval;
 
                 if (PvNode) // Update pv even in fail-high case
                     update_pv(ss->pv, move, (ss+1)->pv);
@@ -1660,6 +1647,8 @@ moves_loop: // When in check, search starts here
     tte.save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
               bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
               ttDepthNew, bestMove, ss->staticEval, improvement);
+
+    assert(tte.improvement() - std::min(improvement,MAX_IMPROVEMENT) > -improvementGrain);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 

@@ -116,7 +116,7 @@ namespace {
   Value search(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool cutNode);
 
   template <NodeType nodeType>
-  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0);
+  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth = 0, bool checkImprovement = true);
 
   Value value_to_tt(Value v, int ply);
   Value value_from_tt(Value v, int ply, int r50c);
@@ -1411,7 +1411,7 @@ moves_loop: // When in check, search starts here
   // function with zero depth, or recursively with further decreasing depth per call.
   // (~155 Elo)
   template <NodeType nodeType>
-  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth) {
+  Value qsearch(Position& pos, Stack* ss, Value alpha, Value beta, Depth depth, bool checkImprovement) {
 
     static_assert(nodeType != Root);
     constexpr bool PvNode = nodeType == PV;
@@ -1498,12 +1498,15 @@ moves_loop: // When in check, search starts here
                 bestValue = ttValue;
 
             //Check if cached improvement is better with some margin
-            Value candidateValue = ss->staticEval + ttImprovement - 10;
+            if(checkImprovement)
+			{
+				Value candidateValue = ss->staticEval + ttImprovement - 10;
 
-            if(PvNode && candidateValue > bestValue)
-            {
-            	candidateValue = qsearch<NonPV>(pos,ss,candidateValue-1,candidateValue);
-            	bestValue = std::max(bestValue, candidateValue);
+				if(candidateValue > bestValue)
+				{
+					candidateValue = qsearch<NonPV>(pos,ss,candidateValue-1,candidateValue, depth, false);
+					bestValue = std::max(bestValue, candidateValue);
+				}
             }
 
 
@@ -1619,7 +1622,7 @@ moves_loop: // When in check, search starts here
 
         // Step 7. Make and search the move
         pos.do_move(move, st, givesCheck);
-        value = -qsearch<nodeType>(pos, ss+1, -beta, -alpha, depth - 1);
+        value = -qsearch<nodeType>(pos, ss+1, -beta, -alpha, depth - 1, checkImprovement);
         pos.undo_move(move);
 
         assert(value > -VALUE_INFINITE && value < VALUE_INFINITE);

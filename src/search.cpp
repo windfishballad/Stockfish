@@ -1429,7 +1429,7 @@ moves_loop: // When in check, search starts here
     Move ttMove, move, bestMove;
     Depth ttDepth, ttDepthNew;
     Bound ttBound;
-    Value bestValue, value, ttValue, ttEval, futilityValue, futilityBase, improvement = Value(0);
+    Value bestValue, value, ttValue, ttEval, ttImprovement, futilityValue, futilityBase, improvement = Value(0);
     bool pvHit, givesCheck, capture;
     int moveCount;
 
@@ -1469,6 +1469,10 @@ moves_loop: // When in check, search starts here
     ttDepth = ss->ttHit ? tte.depth() : DEPTH_NONE;
     ttEval = ss->ttHit ? tte.eval() : VALUE_NONE;
     pvHit = ss->ttHit ? tte.is_pv() : false;
+    ttImprovement = ss->ttHit ? tte.improvement() : Value(0);
+
+    assert(ttImprovement >= 0);
+
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
@@ -1492,6 +1496,17 @@ moves_loop: // When in check, search starts here
             if (    ttValue != VALUE_NONE
                 && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
                 bestValue = ttValue;
+
+            //Check if cached improvement is better with some margin
+            Value candidateValue = ss->staticEval + ttImprovement - 10;
+
+            if(PvNode && candidateValue > bestValue)
+            {
+            	candidateValue = qsearch<NonPV>(pos,ss,candidateValue-1,candidateValue);
+            	bestValue = std::max(bestValue, candidateValue);
+            }
+
+
         }
         else
             // In case of null move search use previous static eval with a different sign

@@ -1492,13 +1492,14 @@ moves_loop: // When in check, search starts here
             if ((ss->staticEval = bestValue = ttEval) == VALUE_NONE)
                 ss->staticEval = bestValue = evaluate(pos);
 
-            // ttValue can be used as a better position evaluation (~13 Elo)
-            if (    ttValue != VALUE_NONE
-                && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
-                bestValue = ttValue;
+            // Check for a cached qsearch ttvalue
+			if (    ttValue != VALUE_NONE
+				&& ttDepth <= 0
+				&& (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
+				bestValue = ttValue;
 
             //Check if cached improvement is better with some margin
-            if(checkImprovement && ttImprovement > 0)
+			if(checkImprovement && ttImprovement > 0)
 			{
 				Value candidateValue = ss->staticEval + ttImprovement-10;
 
@@ -1514,7 +1515,13 @@ moves_loop: // When in check, search starts here
 						assert(ttImprovement - tte.improvement() == improvementGrain);
 					}
 				}
-            }
+			}
+
+            // Non-qsearch ttValue can be used as a better position evaluation (~13 Elo)
+            if (    ttValue != VALUE_NONE
+				&& ttDepth > 0
+                && (ttBound & (ttValue > bestValue ? BOUND_LOWER : BOUND_UPPER)))
+                bestValue = ttValue;
 
 
         }

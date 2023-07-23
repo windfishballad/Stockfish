@@ -37,7 +37,7 @@ void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev
 
 	//If new position, new generation or new best improvement, override the input.
 
-	if((uint16_t) k != tte->key16 || improvement > -1+0*extraInfo->improvement(rank))
+	if((uint16_t) k != tte->key16 || improvement > extraInfo->improvement(rank))
 	{
 		uint16_t quietImprov = std::min(improvement,MAX_IMPROVEMENT)/improvementGrain; //grain
 		extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | (quietImprov << 5*rank);

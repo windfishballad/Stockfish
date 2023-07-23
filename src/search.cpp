@@ -1500,9 +1500,10 @@ moves_loop: // When in check, search starts here
 
             //If no full search ttValue, check if cached improvement is stronger
 			if(	checkImprovement
-				&& (ttValue == VALUE_NONE || ttDepth <= 0 || ttImprovement > 0))
+				&& ttImprovement > 0
+				&& (ttValue == VALUE_NONE || ttDepth <= 0))
 			{
-				Value candidateValue = ss->staticEval + ttImprovement-10;
+				Value candidateValue = ss->staticEval + ttImprovement;
 
 				if(candidateValue > bestValue)
 				{

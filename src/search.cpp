@@ -1498,14 +1498,21 @@ moves_loop: // When in check, search starts here
                 bestValue = ttValue;
 
             //Check if cached improvement is better with some margin
-            if(checkImprovement)
+            if(checkImprovement && ttImprovement > 0)
 			{
-				Value candidateValue = ss->staticEval + ttImprovement - 10;
+				Value candidateValue = ss->staticEval + ttImprovement-10;
 
 				if(candidateValue > bestValue)
 				{
-					candidateValue = qsearch<NonPV>(pos,ss,candidateValue-1,candidateValue, depth, false);
-					bestValue = std::max(bestValue, candidateValue);
+					Value verifiedValue= qsearch<NonPV>(pos,ss,candidateValue-1,candidateValue, depth, false);
+					if(verifiedValue  >= candidateValue)
+						bestValue = verifiedValue;
+					else //prevent improvement from beginning useless because too big
+					{
+						tte.decrementImprovement(posKey, 1);
+						std::cout << ttImprovement << " - " << tte.improvement() << "\n";
+						assert(ttImprovement - tte.improvement() == improvementGrain);
+					}
 				}
             }
 

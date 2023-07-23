@@ -40,7 +40,7 @@ void TTWrapper::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev
 	if((uint16_t) k != tte->key16 || improvement > extraInfo->improvement(rank))
 	{
 		uint16_t quietImprov = std::min(improvement,MAX_IMPROVEMENT)/improvementGrain; //grain
-		extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | (quietImprov << 5*rank);
+		extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | (quietImprov << 5 * rank);
 	}
 
 	tte->save(k, v, pv, b, d, m, ev);
@@ -79,7 +79,7 @@ void TTWrapper::decrementImprovement(Key k, int n) {
 	if ((uint16_t)k == tte->key16)
 	{
 	  int improvement  = (extraInfo-> info & improvementMask[rank]);
-	  improvement = std::max(0, improvement - n * improvementMask[rank]);
+	  improvement = std::max(0, improvement - (n << 5 * rank));
 	  extraInfo->info = (extraInfo-> info & ~ improvementMask[rank]) | improvement;
 	}
 

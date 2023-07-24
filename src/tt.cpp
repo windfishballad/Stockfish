@@ -31,18 +31,18 @@ namespace Stockfish {
 uint16_t moveMapping[1 << 16];
 Move inverseMoveMapping[1 << 12];
 
-const int MOVE_MASK = (0x7FF << 5);
-const int BOUND_MASK = (0x3 << 3);
-const int PV_MASK = (1 << 2);
-const int GEN_MASK  = 0x3;
+const uint32_t MOVE_MASK = (0x7FF << 5);
+const uint32_t BOUND_MASK = (0x3 << 3);
+const uint32_t PV_MASK = (1 << 2);
+const uint32_t GEN_MASK  = 0x3;
 
 
-const int GEN_MASK_COMPLEMENTARY = (1>>16) - 1 - GEN_MASK;
-const int MOVE_MASK_COMPLEMENTARY = (1>>16) - 1 - MOVE_MASK;
+const uint32_t GEN_MASK_COMPLEMENTARY = (1>>16) - 1 - GEN_MASK;
+const uint32_t MOVE_MASK_COMPLEMENTARY = (1>>16) - 1 - MOVE_MASK;
 
-const int EVAL_MASK = (0x1FFF << 17);
-const int VALUE_MASK = (0x1FFF << 6);
-const int DEPTH_MASK = 0x3F;
+const uint32_t EVAL_MASK = (0x1FFF << 19);
+const uint32_t VALUE_MASK = (0x1FFF << 6);
+const uint32_t DEPTH_MASK = 0x3F;
 
 
 void Transposition::init() {
@@ -75,27 +75,27 @@ void Transposition::init() {
 	{
 		for(int j = SQ_A1; j < i; j++)
 		{
-			moveMapping[CASTLING + (i >> 6) + j] = counter;
-			inverseMoveMapping[counter++] = (Move) (CASTLING + (i >> 6) + j);
+			moveMapping[CASTLING + (i << 6) + j] = counter;
+			inverseMoveMapping[counter++] = (Move) (CASTLING + (i << 6) + j);
 		}
 		for(int j = i+1; j <= SQ_H1; j++)
 		{
-			moveMapping[CASTLING + (i >> 6) + j ]= counter;
-			inverseMoveMapping[counter++] = (Move) (CASTLING + (i >> 6) + j);
+			moveMapping[CASTLING + (i << 6) + j ]= counter;
+			inverseMoveMapping[counter++] = (Move) (CASTLING + (i << 6) + j);
 		}
 	}
 
 	for(int i = SQ_B8; i <= SQ_G8; i++)
 	{
 		for(int j = SQ_A8; j < i; j++)
-				{
-					moveMapping[CASTLING + (i >> 6) + j] = counter;
-					inverseMoveMapping[counter++] = (Move) (CASTLING + (i >> 6) + j);
-				}
+		{
+			moveMapping[CASTLING + (i << 6) + j] = counter;
+			inverseMoveMapping[counter++] = (Move) (CASTLING + (i << 6) + j);
+		}
 		for(int j = i+1; j <= SQ_H8; j++)
 		{
-			moveMapping[CASTLING + (i >> 6) + j] = counter;
-			inverseMoveMapping[counter++] = (Move) (CASTLING + (i >> 6) + j);
+			moveMapping[CASTLING + (i << 6) + j] = counter;
+			inverseMoveMapping[counter++] = (Move) (CASTLING + (i << 6) + j);
 		}
 	}
 
@@ -111,20 +111,20 @@ void Transposition::init() {
 			}
 		}
 
-	int i = SQ_A7;
+	int l = SQ_A7;
 	for(PieceType pieceType : {KNIGHT, QUEEN})
 		for(int k : {8, 9})
 			{
-				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k] = counter;
-				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k);
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l + k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l + k);
 			}
 
-	i = SQ_H7;
+	l = SQ_H7;
 	for(PieceType pieceType : {KNIGHT, QUEEN})
 		for(int k : {7, 8})
 			{
-				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k] = counter;
-				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k);
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l + k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l + k);
 			}
 
 	for(int i = SQ_B2; i <= SQ_G2; i++)
@@ -137,21 +137,21 @@ void Transposition::init() {
 				}
 			}
 
-	i = SQ_A2;
+	l = SQ_A2;
 	for(PieceType pieceType : {KNIGHT, QUEEN})
 		for(int k : {7, 8})
 			{
-				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k] = counter;
-				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k);
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l - k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l - k);
 			}
 
-	i = SQ_H2;
+	l = SQ_H2;
 
 	for(PieceType pieceType : {KNIGHT, QUEEN})
 		for(int k : {8, 9})
 			{
-				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k] = counter;
-				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k);
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l - k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l - k);
 			}
 
 	//Entries for en passant
@@ -177,7 +177,7 @@ void Transposition::init() {
 		inverseMoveMapping[counter++] = (Move) (EN_PASSANT + (i << 6) + i - 9);
 	}
 
-	std::cout << counter << "\n";
+	std::cout << (-3)/4 << "\n";
 
 
 
@@ -192,11 +192,9 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
 
   // Preserve any existing move for the same position
   if (m || (uint16_t)k != key16)
-  {
       moveBoundPVGen = (moveBoundPVGen & MOVE_MASK_COMPLEMENTARY) | (moveMapping[m] << 5);
-      std::cout << m << " - " << move() << "\n";
-      assert (move() == m);
-  }
+
+
 
   // Overwrite less valuable entries (cheapest checks first)
   if (   b == BOUND_EXACT
@@ -206,18 +204,58 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       assert(d > DEPTH_OFFSET);
       assert(d < 256 + DEPTH_OFFSET);
 
-      uint32_t value = (uint32_t) std::clamp(v, Value(-0x7FFF), Value(0x7FFF)) / 4;
-      uint32_t eval = (uint32_t) std::clamp(ev, Value(-0x7FFF), Value(0x7FFF)) / 4;
-      uint32_t depth =(uint32_t) std::min(d - DEPTH_OFFSET, 0x3F);
 
-      evalValueDepth = (eval << 17) + (value << 6) + depth;
+      uint32_t newValue = v == VALUE_NONE ? 0x1FFF : 0xFFF + std::clamp(v, Value(-0x3FFF), Value(0x3FFF)) / 4;
+      uint32_t newEval = ev == VALUE_NONE ? 0x1FFF : 0xFFF + std::clamp(ev, Value(-0x3FFF), Value(0x3FFF)) / 4;
+
+      assert(newValue < 8192);
+      assert(newEval < 8192);
+
+      uint32_t newDepth =(uint32_t) std::min(d - DEPTH_OFFSET, 0x3F);
+
+      evalValueDepth = (newEval << 19) + (newValue << 6) + newDepth;
+
 
       uint16_t gen = TT.generation;
       uint16_t newPv = (uint16_t) pv;
-      uint16_t bound = (uint16_t) (b & (v > Value(0x7FFF)) ? BOUND_LOWER : (v < Value(-0x7FFF)) ? BOUND_UPPER : BOUND_EXACT);
+      uint16_t newBound = (uint16_t) (b & (v > Value(0x7FFF) ? BOUND_LOWER : v < Value(-0x7FFF) ? BOUND_UPPER : BOUND_EXACT));
 
-      moveBoundPVGen = (moveBoundPVGen & MOVE_MASK) | ((bound << 3) + (newPv << 2) + gen);
+      moveBoundPVGen = (moveBoundPVGen & MOVE_MASK) | ((newBound << 3) + (newPv << 2) + gen);
+
+      assert(newBound == bound());
+      assert(pv == is_pv());
+      assert(std::min((int) d, 61) == depth());
+
+      std::cout << v << " - " << value() << "\n";
+      if( v!= VALUE_NONE)
+    	  assert(std::clamp(v, Value(-0x3FFF), Value(0x3FFF)) - value() < 4);
+      else
+    	  assert(value() == VALUE_NONE);
+
+      if( ev != VALUE_NONE)
+    	  assert(std::clamp(ev, Value(-0x3FFF), Value(0x3FFF)) - eval() < 4);
+      else
+    	  assert(eval() == VALUE_NONE);
+
   }
+}
+
+Value TTEntry::value() const
+{
+	int data = (int) ((evalValueDepth & VALUE_MASK)>>4);
+	if(data == 0x7FFC)
+		return VALUE_NONE;
+	else
+		return (Value) data - 0x3FFC;
+}
+
+Value TTEntry::eval() const
+{
+	int data = (int) ((evalValueDepth & EVAL_MASK)>>17);
+	if(data == 0x7FFC)
+		return VALUE_NONE;
+	else
+		return (Value) data - 0x3FFC;
 }
 
 

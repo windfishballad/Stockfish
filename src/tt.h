@@ -31,18 +31,18 @@ namespace Transposition {
 	void init();
 } // namespace Transposition
 
-extern const int MOVE_MASK;
-extern const int BOUND_MASK;
-extern const int PV_MASK;
-extern const int GEN_MASK;
+extern const uint32_t MOVE_MASK;
+extern const uint32_t BOUND_MASK;
+extern const uint32_t PV_MASK;
+extern const uint32_t GEN_MASK;
 
 
-extern const int GEN_MASK_COMPLEMENTARY;
-extern const int MOVE_MASK_COMPLEMENTARY;
+extern const uint32_t GEN_MASK_COMPLEMENTARY;
+extern const uint32_t MOVE_MASK_COMPLEMENTARY;
 
-extern const int EVAL_MASK;
-extern const int VALUE_MASK;
-extern const int DEPTH_MASK;
+extern const uint32_t EVAL_MASK;
+extern const uint32_t VALUE_MASK;
+extern const uint32_t DEPTH_MASK;
 
 
 
@@ -60,11 +60,11 @@ extern const int DEPTH_MASK;
 struct TTEntry {
 
   Move  move()  const { return (Move ) inverseMoveMapping[(moveBoundPVGen & MOVE_MASK) >> 5]; }
-  Value value() const { return (Value) ((evalValueDepth & VALUE_MASK) >> 4); }
-  Value eval()  const { return (Value) ((evalValueDepth & EVAL_MASK) >> 15); }
+  Value value() const;
+  Value eval()  const;
   Depth depth() const { return (Depth) ((evalValueDepth & DEPTH_MASK) + DEPTH_OFFSET); }
   bool is_pv()  const { return (bool)(moveBoundPVGen & PV_MASK); }
-  Bound bound() const { return (Bound)(moveBoundPVGen & BOUND_MASK); }
+  Bound bound() const { return (Bound) ((moveBoundPVGen & BOUND_MASK) >> 3); }
   void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev);
 
 private:

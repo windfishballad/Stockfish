@@ -361,7 +361,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
 
       uint16_t gen = TT.generation;
       uint16_t newPv = (uint16_t) pv;
-      uint16_t newBound = (uint16_t) (b & (v > Value(0x3FFF) ? BOUND_LOWER : v < Value(-0x3FFF) ? BOUND_UPPER : BOUND_EXACT));
+      uint16_t newBound = (uint16_t) b;
 
       moveBoundPVGen = (moveBoundPVGen & MOVE_MASK) | ((newBound << 3) + (newPv << 2) + gen);
 

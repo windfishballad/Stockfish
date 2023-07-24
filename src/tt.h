@@ -27,8 +27,13 @@ namespace Stockfish {
 extern uint16_t moveMapping[1 << 16];
 extern Move inverseMoveMapping[1 << 12];
 
+extern uint16_t valueMapping[2*VALUE_MATE +2];
+extern Value inverseValueMapping[1 << 13];
+
 namespace Transposition {
 	void init();
+	void initValueMapping();
+	void initMoveMapping();
 } // namespace Transposition
 
 extern const uint32_t MOVE_MASK;
@@ -59,9 +64,9 @@ extern const uint32_t DEPTH_MASK;
 
 struct TTEntry {
 
-  Move  move()  const { return (Move ) inverseMoveMapping[(moveBoundPVGen & MOVE_MASK) >> 5]; }
-  Value value() const;
-  Value eval()  const;
+  Move  move()  const { return (Move) inverseMoveMapping[(moveBoundPVGen & MOVE_MASK) >> 5]; }
+  Value value() const {return (Value) inverseValueMapping[(evalValueDepth & VALUE_MASK) >> 6]; }
+  Value eval()  const {return (Value) inverseValueMapping[(evalValueDepth & EVAL_MASK) >> 19]; }
   Depth depth() const { return (Depth) ((evalValueDepth & DEPTH_MASK) + DEPTH_OFFSET); }
   bool is_pv()  const { return (bool)(moveBoundPVGen & PV_MASK); }
   Bound bound() const { return (Bound) ((moveBoundPVGen & BOUND_MASK) >> 3); }

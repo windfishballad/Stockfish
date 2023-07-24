@@ -30,6 +30,8 @@ namespace Stockfish {
 
 uint16_t moveMapping[1 << 16];
 Move inverseMoveMapping[1 << 12];
+uint16_t valueMapping[2*VALUE_MATE +2];
+Value inverseValueMapping[1 << 13];
 
 const uint32_t MOVE_MASK = (0x7FF << 5);
 const uint32_t BOUND_MASK = (0x3 << 3);
@@ -44,8 +46,110 @@ const uint32_t EVAL_MASK = (0x1FFF << 19);
 const uint32_t VALUE_MASK = (0x1FFF << 6);
 const uint32_t DEPTH_MASK = 0x3F;
 
-
 void Transposition::init() {
+	initValueMapping();
+	initMoveMapping();
+}
+
+void Transposition::initValueMapping() {
+
+
+	int counter=0;
+
+	valueMapping[VALUE_NONE] = counter;
+	inverseValueMapping[counter++] = VALUE_NONE;
+
+	//Exact between -1000 and 1000
+
+	for(int i = -1000; i <= 1000; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		inverseValueMapping[counter++] = (Value) i;
+	}
+
+	//Exact in findable mate range to not mess up with mate finding
+	for(int i = VALUE_MATE - 100; i <= VALUE_MATE; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		inverseValueMapping[counter++] = (Value) i;
+		valueMapping[VALUE_MATE - i] = counter;
+		inverseValueMapping[counter++] = (Value) -i;
+	}
+
+	//Exact in findable TB range to not mess up with TB finding
+	for(int i = VALUE_MATE_IN_MAX_PLY-101; i <= VALUE_MATE_IN_MAX_PLY-1; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		inverseValueMapping[counter++] = (Value) i;
+		valueMapping[VALUE_MATE - i] = counter;
+		inverseValueMapping[counter++] = (Value) -i;
+	}
+
+	//Grain of 2 between 1001 and 2000
+	for(int i = 1001; i <= 2000; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		valueMapping[VALUE_MATE - i] = counter + 1;
+		if(!(i % 2))
+		{
+			inverseValueMapping[counter++] = (Value) i;
+			inverseValueMapping[counter++] = (Value) -i;
+		}
+	}
+
+	//Grain of 4 between 2001 and 4000
+	for(int i = 2001; i <= 4000; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		valueMapping[VALUE_MATE - i] = counter + 1;
+		if(!(i % 4))
+		{
+			inverseValueMapping[counter++] = (Value) i;
+			inverseValueMapping[counter++] = (Value) -i;
+		}
+	}
+
+	//Grain of 8 between 4001 and 8000
+	for(int i = 5001; i <= 8000; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		valueMapping[VALUE_MATE - i] = counter + 1;
+		if(!(i % 8))
+		{
+			inverseValueMapping[counter++] = (Value) i;
+			inverseValueMapping[counter++] = (Value) -i;
+		}
+	}
+
+	//Grain of 16 between 8001 and TB WIN in 101
+	for(int i = 8001; i <= VALUE_MATE_IN_MAX_PLY-102; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		valueMapping[VALUE_MATE - i] = counter + 1;
+		if(!(i % 16))
+		{
+			inverseValueMapping[counter++] = (Value) i;
+			inverseValueMapping[counter++] = (Value) -i;
+		}
+	}
+
+	//Grain of 4 between TB_WIN and MATE in 101
+	for(int i = VALUE_MATE_IN_MAX_PLY; i <= VALUE_MATE-100; i++)
+	{
+		valueMapping[VALUE_MATE + i] = counter;
+		valueMapping[VALUE_MATE - i] = counter + 1;
+		if(!(i % 4))
+		{
+			inverseValueMapping[counter++] = (Value) i;
+			inverseValueMapping[counter++] = (Value) -i;
+		}
+	}
+
+	std::cout << counter << "\n";
+
+
+}
+void Transposition::initMoveMapping() {
 
 	int counter=0;
 
@@ -251,17 +355,9 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       assert(d > DEPTH_OFFSET);
       assert(d < 256 + DEPTH_OFFSET);
 
-
-      uint32_t newValue = v == VALUE_NONE ? 0x1FFF : 0xFFF + std::clamp(v, Value(-0x3FFF), Value(0x3FFF)) / 4;
-      uint32_t newEval = ev == VALUE_NONE ? 0x1FFF : 0xFFF + std::clamp(ev, Value(-0x3FFF), Value(0x3FFF)) / 4;
-
-      assert(newValue < 8192);
-      assert(newEval < 8192);
-
       uint32_t newDepth =(uint32_t) std::min(d - DEPTH_OFFSET, 0x3F);
 
-      evalValueDepth = (newEval << 19) + (newValue << 6) + newDepth;
-
+      evalValueDepth = (valueMapping[VALUE_MATE+ev] << 19) + (valueMapping[VALUE_MATE+v] << 6) + newDepth;
 
       uint16_t gen = TT.generation;
       uint16_t newPv = (uint16_t) pv;
@@ -276,25 +372,6 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
   }
 
 }
-
-Value TTEntry::value() const
-{
-	int data = (int) ((evalValueDepth & VALUE_MASK)>>4);
-	if(data == 0x7FFC)
-		return VALUE_NONE;
-	else
-		return (Value) data - 0x3FFC;
-}
-
-Value TTEntry::eval() const
-{
-	int data = (int) ((evalValueDepth & EVAL_MASK)>>17);
-	if(data == 0x7FFC)
-		return VALUE_NONE;
-	else
-		return (Value) data - 0x3FFC;
-}
-
 
 /// TranspositionTable::resize() sets the size of the transposition table,
 /// measured in megabytes. Transposition table consists of a power of 2 number

@@ -265,7 +265,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
 
       uint16_t gen = TT.generation;
       uint16_t newPv = (uint16_t) pv;
-      uint16_t newBound = (uint16_t) (b & (v > Value(0x7FFF) ? BOUND_LOWER : v < Value(-0x7FFF) ? BOUND_UPPER : BOUND_EXACT));
+      uint16_t newBound = (uint16_t) (b & (v > Value(0x3FFF) ? BOUND_LOWER : v < Value(-0x3FFF) ? BOUND_UPPER : BOUND_EXACT));
 
       moveBoundPVGen = (moveBoundPVGen & MOVE_MASK) | ((newBound << 3) + (newPv << 2) + gen);
 
@@ -372,7 +372,7 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
 	  gen[i] = (tte[i].moveBoundPVGen & GEN_MASK);
       if (tte[i].key16 == key16 || !depth[i])
       {
-          tte[i].moveBoundPVGen = uint8_t (generation | (tte[i].moveBoundPVGen & GEN_MASK_COMPLEMENTARY)); // Refresh
+          tte[i].moveBoundPVGen = uint16_t (generation | (tte[i].moveBoundPVGen & GEN_MASK_COMPLEMENTARY)); // Refresh
 
 
 

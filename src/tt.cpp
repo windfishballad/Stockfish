@@ -154,6 +154,56 @@ void Transposition::init() {
 				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l - k);
 			}
 
+	//Map non-knight underpromotions to the queen promotion
+
+	for(int i = SQ_B7; i <= SQ_G7; i++)
+		for(PieceType pieceType : {BISHOP, ROOK})
+		{
+			for(int k : {7, 8, 9})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k] = moveMapping[PROMOTION + ((QUEEN - KNIGHT) << 12) + (i << 6) + i + k];
+			}
+		}
+
+	l = SQ_A7;
+	for(PieceType pieceType : {BISHOP, ROOK})
+		for(int k : {8, 9})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l + k] = moveMapping[PROMOTION + ((QUEEN - KNIGHT) << 12) + (l << 6) + l + k];
+			}
+
+	l = SQ_H7;
+	for(PieceType pieceType : {BISHOP, ROOK})
+		for(int k : {7, 8})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l + k] = moveMapping[PROMOTION + ((QUEEN - KNIGHT) << 12) + (l << 6) + l + k];
+			}
+
+	for(int i = SQ_B2; i <= SQ_G2; i++)
+			for(PieceType pieceType : {BISHOP, ROOK})
+			{
+				for(int k: {7, 8, 9})
+				{
+					moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k] = moveMapping[PROMOTION + ((QUEEN - KNIGHT) << 12) + (i << 6) + i - k];
+				}
+			}
+
+	l = SQ_A2;
+	for(PieceType pieceType : {BISHOP, ROOK})
+		for(int k : {7, 8})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l - k] = moveMapping[PROMOTION + ((QUEEN - KNIGHT) << 12) + (l << 6) + l - k];
+			}
+
+	l = SQ_H2;
+
+	for(PieceType pieceType : {BISHOP, ROOK})
+		for(int k : {8, 9})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (l << 6) + l - k] = moveMapping[PROMOTION + ((QUEEN - KNIGHT) << 12) + (l << 6) + l - k] ;
+			}
+
+
 	//Entries for en passant
 
 	for(int i = SQ_A5; i<= SQ_G5; i++)
@@ -177,10 +227,6 @@ void Transposition::init() {
 		inverseMoveMapping[counter++] = (Move) (EN_PASSANT + (i << 6) + i - 9);
 	}
 
-	std::cout << (-3)/4 << "\n";
-
-
-
 }
 
 TranspositionTable TT; // Our global transposition table
@@ -201,6 +247,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       || (uint16_t)k != key16
       || d + 2 * pv >  depth() - 4)
   {
+	  key16 = (uint16_t) k;
       assert(d > DEPTH_OFFSET);
       assert(d < 256 + DEPTH_OFFSET);
 
@@ -225,19 +272,9 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       assert(newBound == bound());
       assert(pv == is_pv());
       assert(std::min((int) d, 61) == depth());
-
-      std::cout << v << " - " << value() << "\n";
-      if( v!= VALUE_NONE)
-    	  assert(std::clamp(v, Value(-0x3FFF), Value(0x3FFF)) - value() < 4);
-      else
-    	  assert(value() == VALUE_NONE);
-
-      if( ev != VALUE_NONE)
-    	  assert(std::clamp(ev, Value(-0x3FFF), Value(0x3FFF)) - eval() < 4);
-      else
-    	  assert(eval() == VALUE_NONE);
-
+      assert((moveBoundPVGen & GEN_MASK) == TT.generation);
   }
+
 }
 
 Value TTEntry::value() const
@@ -324,16 +361,20 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
 
   TTEntry* const tte = first_entry(key);
   const uint16_t key16 = (uint16_t)key;  // Use the low 16 bits as key inside the cluster
-  uint8_t depth[ClusterSize];
-  uint8_t gen[ClusterSize];
+  int depth[ClusterSize];
+  int gen[ClusterSize];
 
-  for (int i = 0; i < ClusterSize; ++i)
+  for (int i = 0; i < ClusterSize; i++)
   {
-	  depth[i] = (uint8_t) (tte[i].evalValueDepth & DEPTH_MASK);
+	  depth[i] = (int) (tte[i].evalValueDepth & DEPTH_MASK);
+
+
 	  gen[i] = (tte[i].moveBoundPVGen & GEN_MASK);
       if (tte[i].key16 == key16 || !depth[i])
       {
           tte[i].moveBoundPVGen = uint8_t (generation | (tte[i].moveBoundPVGen & GEN_MASK_COMPLEMENTARY)); // Refresh
+
+
 
           return found = (bool) depth[i], &tte[i];
       }

@@ -66,11 +66,12 @@ struct TTEntry {
   bool is_pv()  const { return (bool)(moveBoundPVGen & PV_MASK); }
   Bound bound() const { return (Bound) ((moveBoundPVGen & BOUND_MASK) >> 3); }
   void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev);
+  uint16_t key16;
 
 private:
   friend class TranspositionTable;
 
-  uint16_t key16;
+
   uint16_t moveBoundPVGen;
   uint32_t evalValueDepth;
 

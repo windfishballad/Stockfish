@@ -608,6 +608,10 @@ namespace {
             : ss->ttHit    ? tte->move() : MOVE_NONE;
     ttCapture = ttMove && pos.capture_stage(ttMove);
 
+    if(ss->ttHit)
+    	assert((uint16_t) posKey == tte->key16);
+
+
     // At this point, if excluded, skip straight to step 6, static eval. However,
     // to save indentation, we list the condition in all code between here and there.
     if (!excludedMove)
@@ -1456,6 +1460,9 @@ moves_loop: // When in check, search starts here
     ttValue = ss->ttHit ? value_from_tt(tte->value(), ss->ply, pos.rule50_count()) : VALUE_NONE;
     ttMove = ss->ttHit ? tte->move() : MOVE_NONE;
     pvHit = ss->ttHit && tte->is_pv();
+
+    if(ss->ttHit)
+        	assert((uint16_t) posKey == tte->key16);
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode

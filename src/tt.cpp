@@ -145,8 +145,6 @@ void Transposition::initValueMapping() {
 		}
 	}
 
-	std::cout << counter << "\n";
-
 
 }
 void Transposition::initMoveMapping() {

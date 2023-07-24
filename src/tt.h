@@ -24,36 +24,56 @@
 
 namespace Stockfish {
 
-/// TTEntry struct is the 10 bytes transposition table entry, defined as below:
+extern uint16_t moveMapping[1 << 16];
+extern Move inverseMoveMapping[1 << 12];
+
+namespace Transposition {
+	void init();
+} // namespace Transposition
+
+extern const int MOVE_MASK;
+extern const int BOUND_MASK;
+extern const int PV_MASK;
+extern const int GEN_MASK;
+
+
+extern const int GEN_MASK_COMPLEMENTARY;
+extern const int MOVE_MASK_COMPLEMENTARY;
+
+extern const int EVAL_MASK;
+extern const int VALUE_MASK;
+extern const int DEPTH_MASK;
+
+
+
+/// TTEntry struct is the 8 bytes transposition table entry, defined as below:
 ///
 /// key        16 bit
-/// depth       8 bit
-/// generation  5 bit
+/// depth       6 bits
+/// generation  2 bits
 /// pv node     1 bit
 /// bound type  2 bit
-/// move       16 bit
-/// value      16 bit
-/// eval value 16 bit
+/// move       11 bit
+/// value      13 bit
+/// eval value 13 bit
 
 struct TTEntry {
 
-  Move  move()  const { return (Move )move16; }
-  Value value() const { return (Value)value16; }
-  Value eval()  const { return (Value)eval16; }
-  Depth depth() const { return (Depth)depth8 + DEPTH_OFFSET; }
-  bool is_pv()  const { return (bool)(genBound8 & 0x4); }
-  Bound bound() const { return (Bound)(genBound8 & 0x3); }
+  Move  move()  const { return (Move ) inverseMoveMapping[(moveBoundPVGen & MOVE_MASK) >> 5]; }
+  Value value() const { return (Value) ((evalValueDepth & VALUE_MASK) >> 4); }
+  Value eval()  const { return (Value) ((evalValueDepth & EVAL_MASK) >> 15); }
+  Depth depth() const { return (Depth) ((evalValueDepth & DEPTH_MASK) + DEPTH_OFFSET); }
+  bool is_pv()  const { return (bool)(moveBoundPVGen & PV_MASK); }
+  Bound bound() const { return (Bound)(moveBoundPVGen & BOUND_MASK); }
   void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev);
 
 private:
   friend class TranspositionTable;
 
   uint16_t key16;
-  uint8_t  depth8;
-  uint8_t  genBound8;
-  uint16_t move16;
-  int16_t  value16;
-  int16_t  eval16;
+  uint16_t moveBoundPVGen;
+  uint32_t evalValueDepth;
+
 };
 
 
@@ -73,15 +93,11 @@ class TranspositionTable {
 
   static_assert(sizeof(Cluster) == 32, "Unexpected Cluster size");
 
-  // Constants used to refresh the hash table periodically
-  static constexpr unsigned GENERATION_BITS  = 3;                                // nb of bits reserved for other things
-  static constexpr int      GENERATION_DELTA = (1 << GENERATION_BITS);           // increment for generation field
-  static constexpr int      GENERATION_CYCLE = 255 + (1 << GENERATION_BITS);     // cycle length
-  static constexpr int      GENERATION_MASK  = (0xFF << GENERATION_BITS) & 0xFF; // mask to pull out generation number
+  static constexpr int      GENERATION_CYCLE = 4;     // cycle length
 
 public:
  ~TranspositionTable() { aligned_large_pages_free(table); }
-  void new_search() { generation8 += GENERATION_DELTA; } // Lower bits are used for other things
+  void new_search() { generation = (generation + 1) & GEN_MASK; }
   TTEntry* probe(const Key key, bool& found) const;
   int hashfull() const;
   void resize(size_t mbSize);
@@ -96,7 +112,7 @@ private:
 
   size_t clusterCount;
   Cluster* table;
-  uint8_t generation8; // Size must be not bigger than TTEntry::genBound8
+  uint8_t generation; // Size must be not bigger than TTEntry::genBound8
 };
 
 extern TranspositionTable TT;

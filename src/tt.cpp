@@ -99,24 +99,60 @@ void Transposition::init() {
 		}
 	}
 
-
 	//Entries for promotions
 
-	for(int i = SQ_A7; i <= SQ_H7; i++)
-		for(PieceType pieceType : {KNIGHT, BISHOP, ROOK, QUEEN})
+	for(int i = SQ_B7; i <= SQ_G7; i++)
+		for(PieceType pieceType : {KNIGHT, QUEEN})
 		{
-			moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + 8] = counter;
-			inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + 8);
+			for(int k : {7, 8, 9})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k);
+			}
 		}
 
-	for(int i = SQ_A2; i <= SQ_H2; i++)
-			for(PieceType pieceType : {KNIGHT, BISHOP, ROOK, QUEEN})
+	int i = SQ_A7;
+	for(PieceType pieceType : {KNIGHT, QUEEN})
+		for(int k : {8, 9})
 			{
-				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - 8] = counter;
-				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - 8);
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k);
 			}
 
+	i = SQ_H7;
+	for(PieceType pieceType : {KNIGHT, QUEEN})
+		for(int k : {7, 8})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i + k);
+			}
 
+	for(int i = SQ_B2; i <= SQ_G2; i++)
+			for(PieceType pieceType : {KNIGHT, QUEEN})
+			{
+				for(int k: {7, 8, 9})
+				{
+					moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k] = counter;
+					inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k);
+				}
+			}
+
+	i = SQ_A2;
+	for(PieceType pieceType : {KNIGHT, QUEEN})
+		for(int k : {7, 8})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k);
+			}
+
+	i = SQ_H2;
+
+	for(PieceType pieceType : {KNIGHT, QUEEN})
+		for(int k : {8, 9})
+			{
+				moveMapping[PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k] = counter;
+				inverseMoveMapping[counter++] = (Move) (PROMOTION + ((pieceType - KNIGHT) << 12) + (i << 6) + i - k);
+			}
 
 	//Entries for en passant
 
@@ -140,6 +176,8 @@ void Transposition::init() {
 		moveMapping[EN_PASSANT + (i << 6) + i - 9] = counter;
 		inverseMoveMapping[counter++] = (Move) (EN_PASSANT + (i << 6) + i - 9);
 	}
+
+	std::cout << counter << "\n";
 
 
 

@@ -458,7 +458,7 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
   int oldness[ClusterSize];
   for (int i = 0; i < ClusterSize; ++i)
   {
-	  oldness[i] = (GENERATION_CYCLE + generation - gen[replace]) & GEN_MASK;
+	  oldness[i] = (GENERATION_CYCLE + generation - gen[i]) & GEN_MASK;
 	  if(oldness[i] == GENERATION_CYCLE - 1)
 		  return found=false, &tte[i];
 	  else if ((i>0) && depth[replace] - 8 * oldness[replace]

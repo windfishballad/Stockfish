@@ -449,23 +449,22 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
       {
           tte[i].moveBoundPVGen = uint16_t (generation | (tte[i].moveBoundPVGen & GEN_MASK_COMPLEMENTARY)); // Refresh
 
-
-
           return found = (bool) depth[i], &tte[i];
       }
   }
 
   // Find an entry to be replaced according to the replacement strategy
   int replace=0;
-  for (int i = 1; i < ClusterSize; ++i)
-      // Due to our packed storage format for generation and its cyclic
-      // nature we add GENERATION_CYCLE (256 is the modulus, plus what
-      // is needed to keep the unrelated lowest n bits from affecting
-      // the result) to calculate the entry age correctly even after
-      // generation8 overflows into the next cycle.
-      if (  depth[replace] - ((GENERATION_CYCLE + generation - gen[replace]) & GEN_MASK)
-          >   depth[i] - ((GENERATION_CYCLE + generation -   gen[i]) & GEN_MASK))
+  int oldness[ClusterSize];
+  for (int i = 0; i < ClusterSize; ++i)
+  {
+	  oldness[i] = (GENERATION_CYCLE + generation - gen[replace]) & GEN_MASK;
+	  if(oldness[i] == GENERATION_CYCLE - 1)
+		  return found=false, &tte[i];
+	  else if ((i>0) && depth[replace] - 8 * oldness[replace]
+          >   depth[i] - 8 * oldness[i])
           replace = i;
+  }
 
   return found = false, &tte[replace];
 }

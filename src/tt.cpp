@@ -448,8 +448,7 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
 	  oldness[i] = (GENERATION_CYCLE + generation - gen[i]) & GEN_MASK;
 	  if(oldness[i] == GENERATION_CYCLE - 1)
 		  return found=false, &tte[i];
-	  else if ((i>0) && depth[replace] - 8 * oldness[replace]
-          >   depth[i] - 8 * oldness[i])
+	  else if ((i>0) && ((depth[replace]  >   depth[i]) || ((depth[replace] == depth[i]) && (oldness[replace] < oldness[i]))))
           replace = i;
   }
 

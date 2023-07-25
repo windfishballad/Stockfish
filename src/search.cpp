@@ -1454,7 +1454,7 @@ moves_loop: // When in check, search starts here
 
     // At non-PV nodes we check for an early TT cutoff
     if (  !PvNode
-        && (((tte->depth() >= ttDepth) && (tte->bound() & BOUND_UPPER) && (ttValue <= alpha)) || ((ttValue >= beta) && (tte->bound() & BOUND_LOWER)))
+        && (((tte->depth() >= 0 || ((tte->depth() % 2) >= (ttDepth % 2)) ) && (tte->bound() & BOUND_UPPER) && (ttValue <= alpha)) || ((ttValue >= beta) && (tte->bound() & BOUND_LOWER)))
         && ttValue != VALUE_NONE) // Only in case of TT access race or if !ttHit
         return ttValue;
 

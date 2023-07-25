@@ -40,7 +40,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
       move16 = (uint16_t)m;
 
   // Overwrite less valuable entries (cheapest checks first)
-  if (   (int) b >= (int) (genBound8 & 0x4)
+  if (   (int) b >= (int) (genBound8 & 0x3)
       || (uint16_t)k != key16
       || d - DEPTH_OFFSET + 2 * pv > depth8 - 4)
   {
@@ -138,8 +138,8 @@ TTEntry* TranspositionTable::probe(const Key key, bool& found) const {
       // is needed to keep the unrelated lowest n bits from affecting
       // the result) to calculate the entry age correctly even after
       // generation8 overflows into the next cycle.
-      if (  replace->depth8 - ((GENERATION_CYCLE + generation8 - replace->genBound8) & GENERATION_MASK)
-          >   tte[i].depth8 - ((GENERATION_CYCLE + generation8 -   tte[i].genBound8) & GENERATION_MASK))
+      if (  8 * (replace->genBound8 & 0x3) + replace->depth8 - ((GENERATION_CYCLE + generation8 - replace->genBound8) & GENERATION_MASK)
+          >   8 * (tte[i].genBound8 & 0x3) + tte[i].depth8 - ((GENERATION_CYCLE + generation8 -   tte[i].genBound8) & GENERATION_MASK))
           replace = &tte[i];
 
   return found = false, replace;

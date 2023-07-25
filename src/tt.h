@@ -36,18 +36,15 @@ namespace Transposition {
 	void initMoveMapping();
 } // namespace Transposition
 
-extern const uint32_t MOVE_MASK;
-extern const uint32_t BOUND_MASK;
-extern const uint32_t PV_MASK;
-extern const uint32_t GEN_MASK;
-
-
-extern const uint32_t GEN_MASK_COMPLEMENTARY;
-extern const uint32_t MOVE_MASK_COMPLEMENTARY;
-
-extern const uint32_t EVAL_MASK;
-extern const uint32_t VALUE_MASK;
-extern const uint32_t DEPTH_MASK;
+constexpr uint32_t MOVE_MASK = (0x7FF << 5);
+constexpr uint32_t BOUND_MASK = (0x3 << 3);
+constexpr uint32_t PV_MASK = (1 << 2);
+constexpr uint32_t GEN_MASK  = 0x3;
+constexpr uint32_t GEN_MASK_COMPLEMENTARY = (1>>16) - 1 - GEN_MASK;
+constexpr uint32_t MOVE_MASK_COMPLEMENTARY = (1>>16) - 1 - MOVE_MASK;
+constexpr uint32_t EVAL_MASK = (0x1FFF << 19);
+constexpr uint32_t VALUE_MASK = (0x1FFF << 6);
+constexpr uint32_t DEPTH_MASK = 0x3F;
 
 
 

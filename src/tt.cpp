@@ -33,19 +33,6 @@ Move inverseMoveMapping[1 << 12];
 uint16_t valueMapping[2*VALUE_MATE +2];
 Value inverseValueMapping[1 << 13];
 
-const uint32_t MOVE_MASK = (0x7FF << 5);
-const uint32_t BOUND_MASK = (0x3 << 3);
-const uint32_t PV_MASK = (1 << 2);
-const uint32_t GEN_MASK  = 0x3;
-
-
-const uint32_t GEN_MASK_COMPLEMENTARY = (1>>16) - 1 - GEN_MASK;
-const uint32_t MOVE_MASK_COMPLEMENTARY = (1>>16) - 1 - MOVE_MASK;
-
-const uint32_t EVAL_MASK = (0x1FFF << 19);
-const uint32_t VALUE_MASK = (0x1FFF << 6);
-const uint32_t DEPTH_MASK = 0x3F;
-
 void Transposition::init() {
 	initValueMapping();
 	initMoveMapping();

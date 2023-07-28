@@ -358,7 +358,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, 
 
 	if(m2)
 	{
-		m_move2 = moveMapping[m2];
+		m_move2 = m2 == MOVE_NULL ? 0 : moveMapping[m2];
 		updateMoves=true;
 	}
 

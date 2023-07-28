@@ -1309,7 +1309,11 @@ moves_loop: // When in check, search starts here
 
           if (value > alpha)
           {
-        	  secondBestMove = bestMove;
+        	  if(value-alpha < 100)
+        		  secondBestMove = bestMove;
+        	  else
+        		  secondBestMove = MOVE_NULL; //reset
+
               bestMove = move;
 
               if (PvNode && !rootNode) // Update pv even in fail-high case
@@ -1422,7 +1426,7 @@ moves_loop: // When in check, search starts here
 
     TTEntry tte;
     Key posKey;
-    Move ttMove, move, bestMove, secondBestMove, ttMove2;
+    Move ttMove, move, bestMove, ttMove2;
     Depth ttDepth;
     Value bestValue, value, ttValue, futilityValue, futilityBase;
     bool pvHit, givesCheck, capture;
@@ -1436,7 +1440,7 @@ moves_loop: // When in check, search starts here
     }
 
     Thread* thisThread = pos.this_thread();
-    bestMove = secondBestMove = MOVE_NONE;
+    bestMove = MOVE_NONE;
     ss->inCheck = pos.checkers();
     moveCount = 0;
 
@@ -1524,6 +1528,7 @@ moves_loop: // When in check, search starts here
 
     // Step 5. Loop through all pseudo-legal moves until no moves remain
     // or a beta cutoff occurs.
+
     while ((move = mp.next_move()) != MOVE_NONE)
     {
         assert(is_ok(move));
@@ -1607,7 +1612,6 @@ moves_loop: // When in check, search starts here
 
             if (value > alpha)
             {
-            	secondBestMove = bestMove;
                 bestMove = move;
 
                 if (PvNode) // Update pv even in fail-high case
@@ -1634,7 +1638,7 @@ moves_loop: // When in check, search starts here
     // Save gathered info in transposition table
     tte.save(posKey, value_to_tt(bestValue, ss->ply), pvHit,
               bestValue >= beta ? BOUND_LOWER : BOUND_UPPER,
-              ttDepth, bestMove, ss->staticEval, secondBestMove);
+              ttDepth, bestMove, ss->staticEval);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 

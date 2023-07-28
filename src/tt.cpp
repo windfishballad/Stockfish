@@ -340,28 +340,27 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
 	bool update=false;
 	bool updateMoves=false;
 
-	if ((uint16_t) k == key)
+	if((uint16_t) k == key && m && m_move && moveMapping[m] != m_move)
 	{
-	  if(m && moveMapping[m] != m_move)
-	  {
-		  m_move2 = m_move;
-		  m_move=moveMapping[m];
-		  updateMoves=true;
-	  }
+		if ((int) (m_depth + m_bound + 2*m_is_pv) > d - DEPTH_OFFSET + b + 2*pv -4)
+		{
+			m_move2 = m_move;
+			m_move = moveMapping[m];
+		}
+		else
+		{
+			m_move = moveMapping[m];
+			m_move2=0;
+		}
+		updateMoves=true;
 	}
-	else
+	else if(m || (uint16_t) k != key)
 	{
 		m_move = moveMapping[m];
-		m_move2 = 0;
 		updateMoves=true;
 	}
 
 
-	if(updateMoves)
-	{
-		assert(m_move <= 0x7FF);
-		assert(m_move2 <= 0x7FF);
-	}
 
 	// Overwrite less valuable entries (cheapest checks first)
 	if (   b == BOUND_EXACT
@@ -380,6 +379,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
 	  m_eval      	= (uint32_t) VALUE_INFINITE + ev;
 	  m_bound     	= (uint32_t) b;
 	  m_is_pv      	= (uint32_t) pv;
+
 
 	  assert(generation <= 0xF);
 	  assert(key <= 0xFFFF);

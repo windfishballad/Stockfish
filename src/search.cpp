@@ -542,7 +542,7 @@ namespace {
 
     TTEntry tte;
     Key posKey;
-    Move ttMove, move, excludedMove, bestMove, secondBestMove, ttMove2;
+    Move ttMove, move, excludedMove, bestMove, ttMove2;
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval, maxValue, probCutBeta;
     bool givesCheck, improving, priorCapture, singularQuietLMR;
@@ -592,7 +592,7 @@ namespace {
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
-    (ss+1)->excludedMove = bestMove = secondBestMove = MOVE_NONE;
+    (ss+1)->excludedMove = bestMove = MOVE_NONE;
     (ss+2)->killers[0]   = (ss+2)->killers[1] = MOVE_NONE;
     (ss+2)->cutoffCnt    = 0;
     ss->doubleExtensions = (ss-1)->doubleExtensions;
@@ -1309,10 +1309,6 @@ moves_loop: // When in check, search starts here
 
           if (value > alpha)
           {
-        	  if(value-alpha < 100)
-        		  secondBestMove = bestMove;
-        	  else
-        		  secondBestMove = MOVE_NULL; //reset
 
               bestMove = move;
 
@@ -1398,7 +1394,7 @@ moves_loop: // When in check, search starts here
         tte.save(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
                   bestValue >= beta ? BOUND_LOWER :
                   PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
-                  depth, bestMove, ss->staticEval, secondBestMove);
+                  depth, bestMove, ss->staticEval);
     }
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);

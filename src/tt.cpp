@@ -331,7 +331,7 @@ void Cluster::setGeneration(int rank)
 	}
 }
 
-void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) {
+void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Move m2) {
 
 	// Preserve any existing m_move for the same position
 
@@ -340,25 +340,25 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
 	bool update=false;
 	bool updateMoves=false;
 
-	if((uint16_t) k == key && m && m_move && moveMapping[m] != m_move)
-	{
-		if ((int) (m_depth + m_bound + 2*m_is_pv) > d - DEPTH_OFFSET + b + 2*pv + 4)
-		{
-			m_move2 = m_move;
-			m_move = moveMapping[m];
-		}
-		else
-		{
-			m_move = moveMapping[m];
-			m_move2=0;
-		}
-		updateMoves=true;
-	}
-	else if(m || (uint16_t) k != key)
+	if((uint16_t) k != key)
 	{
 		m_move = moveMapping[m];
-		updateMoves=true;
+		m_move2 = moveMapping[m2];
+		updateMoves = true;
 	}
+	else if(m && moveMapping[m] != m_move)
+	{
+		m_move = moveMapping[m];
+		m_move2 = moveMapping[m2];
+		updateMoves = true;
+	}
+	else if(m2)
+	{
+		m_move2 = moveMapping[m2];
+		updateMoves = true;
+	}
+	else if (m)
+		updateMoves=true;
 
 
 

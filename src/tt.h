@@ -165,7 +165,7 @@ struct TTEntry {
 	Depth depth() const { return (Depth) (m_depth + DEPTH_OFFSET); }
 	bool is_pv()  const { return (bool) m_is_pv; }
 	Bound bound() const { return (Bound) m_bound; }
-	void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev);
+	void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, Move m2 = MOVE_NONE);
 
 
 

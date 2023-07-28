@@ -542,7 +542,7 @@ namespace {
 
     TTEntry tte;
     Key posKey;
-    Move ttMove, move, excludedMove, bestMove, ttMove2;
+    Move ttMove, move, excludedMove, bestMove, ttMove2, secondBestMove;
     Depth extension, newDepth;
     Value bestValue, value, ttValue, eval, maxValue, probCutBeta;
     bool givesCheck, improving, priorCapture, singularQuietLMR;
@@ -592,7 +592,7 @@ namespace {
 
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
-    (ss+1)->excludedMove = bestMove = MOVE_NONE;
+    (ss+1)->excludedMove = bestMove = secondBestMove = MOVE_NONE;
     (ss+2)->killers[0]   = (ss+2)->killers[1] = MOVE_NONE;
     (ss+2)->cutoffCnt    = 0;
     ss->doubleExtensions = (ss-1)->doubleExtensions;
@@ -1310,13 +1310,15 @@ moves_loop: // When in check, search starts here
           if (value > alpha)
           {
 
-              bestMove = move;
+
 
               if (PvNode && !rootNode) // Update pv even in fail-high case
                   update_pv(ss->pv, move, (ss+1)->pv);
 
               if (value >= beta)
               {
+            	  bestMove = move;
+            	  secondBestMove= MOVE_NONE;
                   ss->cutoffCnt += 1 + !ttMove;
                   assert(value >= beta); // Fail high
                   break;
@@ -1331,6 +1333,15 @@ moves_loop: // When in check, search starts here
                       depth -= 2;
 
                   assert(depth > 0);
+
+                  assert(PvNode);
+                  if(value - alpha < 20)
+                	  secondBestMove = bestMove;
+                  else
+                	  secondBestMove = MOVE_NONE;
+
+                  bestMove = move;
+
                   alpha = value; // Update alpha! Always alpha < beta
               }
           }
@@ -1394,7 +1405,7 @@ moves_loop: // When in check, search starts here
         tte.save(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
                   bestValue >= beta ? BOUND_LOWER :
                   PvNode && bestMove ? BOUND_EXACT : BOUND_UPPER,
-                  depth, bestMove, ss->staticEval);
+                  depth, bestMove, ss->staticEval, secondBestMove);
     }
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);

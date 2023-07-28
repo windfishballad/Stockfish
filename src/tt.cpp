@@ -342,7 +342,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev) 
 
 	if((uint16_t) k == key && m && m_move && moveMapping[m] != m_move)
 	{
-		if ((int) (m_depth + m_bound + 2*m_is_pv) > d - DEPTH_OFFSET + b + 2*pv -4)
+		if ((int) (m_depth + m_bound + 2*m_is_pv) > d - DEPTH_OFFSET + b + 2*pv + 4)
 		{
 			m_move2 = m_move;
 			m_move = moveMapping[m];

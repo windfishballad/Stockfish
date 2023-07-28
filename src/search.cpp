@@ -1318,7 +1318,7 @@ moves_loop: // When in check, search starts here
               if (value >= beta)
               {
             	  bestMove = move;
-            	  secondBestMove= MOVE_NONE;
+            	  secondBestMove= value - alpha >= 20 ? MOVE_NULL : MOVE_NONE;
                   ss->cutoffCnt += 1 + !ttMove;
                   assert(value >= beta); // Fail high
                   break;
@@ -1335,10 +1335,8 @@ moves_loop: // When in check, search starts here
                   assert(depth > 0);
 
                   assert(PvNode);
-                  if(value - alpha < 20)
-                	  secondBestMove = bestMove;
-                  else
-                	  secondBestMove = MOVE_NONE;
+
+                  secondBestMove= value - alpha >= 20 ? MOVE_NULL : bestMove;
 
                   bestMove = move;
 

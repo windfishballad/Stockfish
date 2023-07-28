@@ -343,18 +343,18 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, 
 	if((uint16_t) k != key)
 	{
 		m_move = moveMapping[m];
-		m_move2 = moveMapping[m2];
+		m_move2 = m2 == MOVE_NULL ? 0 : moveMapping[m2];
 		updateMoves = true;
 	}
 	else if(m && moveMapping[m] != m_move)
 	{
 		m_move = moveMapping[m];
-		m_move2 = moveMapping[m2];
+		m_move2 = m2 == MOVE_NULL ? 0 : moveMapping[m2];
 		updateMoves = true;
 	}
 	else if(m2)
 	{
-		m_move2 = moveMapping[m2];
+		m_move2 = m2 == MOVE_NULL ? 0 : moveMapping[m2];
 		updateMoves = true;
 	}
 	else if (m)

@@ -147,9 +147,15 @@ void init();
 
 struct Cluster {
 
+private:
+
+	friend struct TTEntry;
+	friend class TranspositionTable;
+
 	int getDepth(int rank) const;
 	int getGeneration(int rank) const;
 	uint16_t getKey(int rank) const;
+	uint16_t getMove(int rank) const;
 	void setGeneration(int rank);
 
   uint32_t data[8];

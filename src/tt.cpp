@@ -313,6 +313,23 @@ uint16_t Cluster::getKey(int rank) const
 	return 0;
 }
 
+uint16_t Cluster::getMove(int rank) const
+{
+	switch(rank)
+	{
+	case 0:
+		return (uint16_t) ((data[MOVE_INDEX_0] & MOVE_MASK_0) >> MOVE_SHIFT_0);
+
+	case 1:
+		return (uint16_t) ((data[MOVE_INDEX_1] & MOVE_MASK_1) >> MOVE_SHIFT_1);
+
+	case 2:
+		return (uint16_t) ((data[MOVE_INDEX_2] & MOVE_MASK_2) >> MOVE_SHIFT_2);
+	}
+
+	return 0;
+}
+
 void Cluster::setGeneration(int rank)
 {
 	switch(rank)
@@ -335,26 +352,28 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, 
 
 	// Preserve any existing m_move for the same position
 
-	copyDataLight();
+	uint16_t thisKey = data->getKey(rank);
+	int thisDepth = data->getDepth(rank);
+	uint16_t thisMove = data->getMove(rank);
 
 	bool update=false;
 	bool updateMoves=false;
 
-	if((uint16_t) k != key)
+	if((uint16_t) k != thisKey)
 	{
 		m_move = moveMapping[m];
-		m_move2 = m2 == MOVE_NULL ? 0 : moveMapping[m2];
+		m_move2 = m2 == MOVE_NULL ? 0 : 0*moveMapping[m2];
 		updateMoves = true;
 	}
-	else if(m && moveMapping[m] != m_move)
+	else if(m && moveMapping[m] != thisMove)
 	{
 		m_move = moveMapping[m];
-		m_move2 = m2 == MOVE_NULL ? 0 : moveMapping[m2];
+		m_move2 = m2 == MOVE_NULL ? 0 : 0*moveMapping[m2];
 		updateMoves = true;
 	}
 	else if(m2)
 	{
-		m_move2 = m2 == MOVE_NULL ? 0 : moveMapping[m2];
+		m_move2 = m2 == MOVE_NULL ? 0 : 0*moveMapping[m2];
 		updateMoves = true;
 	}
 	else if (m)
@@ -365,7 +384,7 @@ void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, 
 	// Overwrite less valuable entries (cheapest checks first)
 	if (   b == BOUND_EXACT
 	  || (uint16_t)k != key
-	  || d - DEPTH_OFFSET + 2 * pv > (int) m_depth - 4)
+	  || d - DEPTH_OFFSET + 2 * pv > (int) thisDepth - 4)
 	{
 	  assert(d > DEPTH_OFFSET);
 	  assert(d < 256 + DEPTH_OFFSET);
